@@ -407,14 +407,9 @@ def build_edit_args(form: Dict[str, str]) -> List[str]:
 
 def create_download_job(form: Dict[str, str]) -> Job:
     url = form.get("url", "").strip()
-    mode = form.get("mode", "download").strip() or "download"
-    edit_args = build_edit_args(form)
-    if mode == "download" and edit_args:
-        mode = "workflow"
+    mode = "download"
     command = ["python3", str(SCRIPT_PATH), mode, url]
     command.extend(build_common_download_args(form))
-    if mode == "workflow":
-        command.extend(edit_args)
     title = f"{mode}: {url[:72]}"
     output_path = str(ROOT_DIR / (form.get("output_dir", "downloads") or "downloads"))
     return make_job(title, command, output_path=output_path)
@@ -1090,14 +1085,8 @@ def render_page(error_message: str = "") -> str:
           <input class="field" name="url" placeholder="Dán link video vào đây..." required>
         </div>
 
-        <div class="label-block">
-          <strong>Mô tả chỉnh sửa</strong>
-          <textarea class="field multiline" name="edit_prompt" placeholder="Ví dụ: cắt 3 giây đầu, chữ chạy: Sale cuối tuần, lọc tiếng ồn, thêm hiệu ứng, nhạc nền nhẹ"></textarea>
-          <div class="form-note">Có thể ghi tự nhiên như: cắt 3 giây đầu, làm dọc 9:16, chữ chạy: giảm giá hôm nay, lọc tiếng ồn, thêm hiệu ứng, nhạc nền 2.</div>
-        </div>
-
         <div class="actions">
-          <button class="cta" type="submit">Tải và xử lý ngay</button>
+          <button class="cta" type="submit">Tải video ngay</button>
         </div>
       </form>
 
@@ -1114,55 +1103,16 @@ def render_page(error_message: str = "") -> str:
     const seededJobs = {jobs_json};
     const seededFiles = {recent_files_json};
     const form = document.querySelector("form");
-    const modeInputs = document.querySelectorAll('input[name="download_mode"]');
     const submitButton = form.querySelector('button[type="submit"]');
     const defaultButtonLabel = submitButton.textContent;
     const statusSection = document.querySelector(".status-panel");
     const jobBanner = document.getElementById("job-banner");
     let lastHighlightedJobId = "";
 
-    function syncMode() {{
-      const selected = document.querySelector('input[name="download_mode"]:checked')?.value;
-      const audioFlag = form.querySelector('input[name="audio_only"]');
-      const presetField = form.querySelector('input[name="preset_name"]');
-      const workflowField = form.querySelector('input[name="mode"]');
-
-      if (!audioFlag) {{
-        const audio = document.createElement("input");
-        audio.type = "hidden";
-        audio.name = "audio_only";
-        form.appendChild(audio);
-      }}
-      if (!presetField) {{
-        const preset = document.createElement("input");
-        preset.type = "hidden";
-        preset.name = "preset_name";
-        form.appendChild(preset);
-      }}
-
-      const audioHidden = form.querySelector('input[name="audio_only"]');
-      const presetHidden = form.querySelector('input[name="preset_name"]');
-
-      audioHidden.value = "";
-      presetHidden.value = "none";
-      workflowField.value = "download";
-
-      if (selected === "video_vertical") {{
-        workflowField.value = "workflow";
-        presetHidden.value = "reel";
-      }}
-      if (selected === "audio_only") {{
-        audioHidden.value = "on";
-      }}
-    }}
-
-    modeInputs.forEach((input) => input.addEventListener("change", syncMode));
-    syncMode();
-
     form.addEventListener("submit", () => {{
       submitButton.disabled = true;
-      submitButton.textContent = "Đang xử lý...";
-      showBanner("running", "Đã nhận link. Hệ thống đang xử lý, trang sẽ tự cập nhật khi có kết quả.");
+      submitButton.textContent = "Đang tải...";
+      showBanner("running", "Đã nhận link. Hệ thống đang tải video, trang sẽ tự cập nhật khi có kết quả.");
       statusSection.scrollIntoView({{ behavior: "smooth", block: "start" }});
     }});
 
@@ -1185,7 +1135,7 @@ def render_page(error_message: str = "") -> str:
         return;
       }}
       if (latest.status === "running") {{
-        showBanner("running", "Đang xử lý video. Chờ một chút, khi xong sẽ hiện nút lưu vào máy.");
+        showBanner("running", "Đang tải video. Chờ một chút, khi xong sẽ hiện nút lưu vào máy.");
         return;
       }}
       if (latest.status === "failed") {{
@@ -1233,7 +1183,7 @@ def render_page(error_message: str = "") -> str:
           `
           : "";
         const statusNote = latest.status === "running"
-            ? '<div class="status-note running">Đang xử lý video. Chờ thêm một chút, nút lưu sẽ hiện ngay tại đây.</div>'
+            ? '<div class="status-note running">Đang tải video. Chờ thêm một chút, nút lưu sẽ hiện ngay tại đây.</div>'
             : latest.status === "failed"
               ? '<div class="status-note failed">Lần tải này chưa thành công. Hãy kiểm tra log bên dưới rồi thử lại.</div>'
               : "";
