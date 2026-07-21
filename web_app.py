@@ -918,11 +918,12 @@ def render_page(error_message: str = "") -> str:
       .intro h1 {{
         max-width: 11ch;
         width: auto;
-        font-size: clamp(24px, 6.4vw, 30px);
-        line-height: 1.08;
-        letter-spacing: -0.045em;
+        font-size: clamp(20px, 5.4vw, 24px);
+        line-height: 1.2;
+        letter-spacing: -0.02em;
         text-wrap: pretty;
         text-align: center;
+        font-weight: 600;
       }}
       .intro {{
         justify-items: center;
