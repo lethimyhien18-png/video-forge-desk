@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: video-forge-desk
+    runtime: docker
+    plan: free
+    autoDeployTrigger: commit
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "10000"
