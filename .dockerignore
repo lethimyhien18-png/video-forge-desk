@@ -1,0 +1,11 @@
+.git
+.pycache
+__pycache__
+*.pyc
+.DS_Store
+downloads/*
+!downloads/.gitkeep
+tests
+README.md
+setup_deps.sh
+run_app.sh
