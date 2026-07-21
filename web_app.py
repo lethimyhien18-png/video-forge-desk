@@ -57,11 +57,31 @@ class Job:
     def to_dict(self) -> Dict[str, object]:
         payload = asdict(self)
         payload["created_label"] = time.strftime("%H:%M:%S", time.localtime(self.created_at))
+        payload["display_title"] = build_job_display_title(self)
+        payload["display_file_name"] = Path(self.downloadable_path or self.output_path).name if (self.downloadable_path or self.output_path) else ""
         return payload
 
 
 jobs: Dict[str, Job] = {}
 jobs_lock = threading.Lock()
+
+
+def truncate_text(value: str, limit: int = 72) -> str:
+    cleaned = " ".join((value or "").split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 1].rstrip() + "…"
+
+
+def build_job_display_title(job: Job) -> str:
+    if job.downloadable_path:
+        return truncate_text(Path(job.downloadable_path).stem, 78)
+    source = job.title.replace("workflow:", "").replace("download:", "").replace("edit:", "").strip()
+    if source.startswith("http://") or source.startswith("https://"):
+        parsed = urllib.parse.urlparse(source)
+        compact = parsed.netloc + (parsed.path or "")
+        return truncate_text(compact, 64)
+    return truncate_text(source, 78)
 
 
 def dependency_report() -> Dict[str, bool]:
@@ -473,8 +493,9 @@ def render_page(error_message: str = "") -> str:
       align-items: center;
     }}
     .status-title {{
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 800;
+      line-height: 1.35;
     }}
     .status-meta {{
       font-size: 14px;
@@ -496,11 +517,6 @@ def render_page(error_message: str = "") -> str:
       padding: 0 16px 16px;
       display: grid;
       gap: 10px;
-    }}
-    .status-path {{
-      font-size: 15px;
-      color: var(--muted);
-      word-break: break-word;
     }}
     .status-log {{
       margin: 0;
@@ -568,6 +584,53 @@ def render_page(error_message: str = "") -> str:
       background: rgba(178,34,34,0.10);
       color: #8d1c1c;
     }}
+    .result-card {{
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid rgba(31, 24, 18, 0.08);
+      display: grid;
+      gap: 8px;
+    }}
+    .result-label {{
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #8f5b24;
+    }}
+    .result-name {{
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.45;
+      word-break: break-word;
+      color: #2a2018;
+    }}
+    .technical-toggle {{
+      margin-top: 2px;
+      border-top: 1px solid rgba(31, 24, 18, 0.08);
+      padding-top: 12px;
+    }}
+    .technical-toggle summary {{
+      cursor: pointer;
+      list-style: none;
+      font-weight: 800;
+      color: #7f5527;
+      font-size: 14px;
+    }}
+    .technical-toggle summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .technical-panel {{
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }}
+    .technical-path {{
+      font-size: 14px;
+      color: var(--muted);
+      word-break: break-word;
+    }}
     .library {{
       margin-top: 8px;
       display: grid;
@@ -599,11 +662,13 @@ def render_page(error_message: str = "") -> str:
     }}
     .library-name {{
       font-weight: 800;
-      font-size: 16px;
+      font-size: 15px;
+      line-height: 1.45;
+      word-break: break-word;
     }}
     .library-meta {{
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13px;
       word-break: break-word;
     }}
     .history-toggle {{
@@ -1033,11 +1098,13 @@ def render_page(error_message: str = "") -> str:
       const latestHtml = latest ? (() => {{
         const logs = (latest.log_lines || []).join("\\n");
         const output = latest.downloadable_path || latest.output_path || "Sẽ hiện khi xử lý xong";
+        const displayTitle = latest.display_title || latest.title || "Video đã tải";
+        const displayFileName = latest.display_file_name || "";
         const saveCallout = latest.downloadable_url
           ? `
             <div class="save-callout">
               <strong>Xong rồi, bấm đây để lưu vào máy</strong>
-              <p>Nếu đang dùng điện thoại, sau khi bấm nút bên dưới máy sẽ hiện phần tải xuống hoặc mở màn hình lưu file.</p>
+              <p>Sau khi bấm nút bên dưới, máy sẽ mở phần lưu file hoặc tải xuống.</p>
               <a class="download-link primary" href="${{escapeHtml(latest.downloadable_url)}}" download>Lưu vào máy</a>
             </div>
           `
@@ -1053,16 +1120,27 @@ def render_page(error_message: str = "") -> str:
           <article class="status-item">
             <div class="status-head">
               <div>
-                <div class="status-title">${{escapeHtml(latest.title)}}</div>
-                <div class="status-meta">${{escapeHtml(latest.created_label || "")}} · exit ${{escapeHtml(latest.return_code ?? "-")}}</div>
+                <div class="status-title">${{escapeHtml(displayTitle)}}</div>
+                <div class="status-meta">${{escapeHtml(latest.created_label || "")}}</div>
               </div>
               <span class="status-badge ${{escapeHtml(latest.status)}}">${{escapeHtml(latest.status)}}</span>
             </div>
             <div class="status-body">
-              <div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>
+              ${{displayFileName ? `
+                <div class="result-card">
+                  <div class="result-label">Video đã sẵn sàng</div>
+                  <div class="result-name">${{escapeHtml(displayFileName)}}</div>
+                </div>
+              ` : ""}}
               ${{saveCallout}}
               ${{statusNote}}
-              <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
+              <details class="technical-toggle">
+                <summary>Xem chi tiết kỹ thuật</summary>
+                <div class="technical-panel">
+                  <div class="technical-path"><strong>Đường dẫn file:</strong> ${{escapeHtml(output)}}</div>
+                  <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
+                </div>
+              </details>
             </div>
           </article>
         `;
@@ -1078,7 +1156,7 @@ def render_page(error_message: str = "") -> str:
                   : "";
                 return `
                   <article class="history-mini">
-                    <strong>${{escapeHtml(job.title)}}</strong>
+                    <strong>${{escapeHtml(job.display_title || job.title)}}</strong>
                     <div class="status-meta">${{escapeHtml(job.created_label || "")}} · ${{escapeHtml(job.status)}}</div>
                     ${{linkHtml}}
                   </article>
@@ -1106,7 +1184,7 @@ def render_page(error_message: str = "") -> str:
             <article class="library-item">
               <div>
                 <div class="library-name">${{escapeHtml(file.name)}}</div>
-                <div class="library-meta">${{escapeHtml(file.size)}} · ${{escapeHtml(file.path)}}</div>
+                <div class="library-meta">${{escapeHtml(file.size)}}</div>
               </div>
               <a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a>
             </article>
