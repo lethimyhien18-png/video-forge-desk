@@ -373,6 +373,37 @@ def render_page(error_message: str = "") -> str:
       border: 1px solid rgba(178,34,34,0.15);
       color: #8d1c1c;
     }}
+    .job-banner {{
+      display: none;
+      position: sticky;
+      top: 14px;
+      z-index: 10;
+      margin-bottom: 18px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.5;
+      box-shadow: 0 18px 36px rgba(85, 57, 28, 0.12);
+    }}
+    .job-banner.show {{
+      display: block;
+    }}
+    .job-banner.done {{
+      background: #fff4e8;
+      border: 1px solid rgba(208, 109, 45, 0.24);
+      color: #8f4b1c;
+    }}
+    .job-banner.running {{
+      background: #fff6da;
+      border: 1px solid rgba(255,186,73,0.30);
+      color: #7d4a00;
+    }}
+    .job-banner.failed {{
+      background: rgba(178,34,34,0.08);
+      border: 1px solid rgba(178,34,34,0.18);
+      color: #8d1c1c;
+    }}
     .status-panel {{
       margin-top: 8px;
       padding-top: 8px;
@@ -659,6 +690,10 @@ def render_page(error_message: str = "") -> str:
       cursor: pointer;
       box-shadow: 0 18px 36px rgba(208, 109, 45, 0.20);
     }}
+    .cta[disabled] {{
+      cursor: wait;
+      opacity: 0.78;
+    }}
     .hint {{
       font-size: clamp(18px, 2vw, 22px);
       color: var(--muted);
@@ -690,6 +725,7 @@ def render_page(error_message: str = "") -> str:
   <main class="shell">
     {error_html}
     {dependency_html}
+    <div id="job-banner" class="job-banner" aria-live="polite"></div>
     <section class="quick-card">
       <div class="intro">
         <h1>Tải nhanh</h1>
@@ -761,6 +797,11 @@ def render_page(error_message: str = "") -> str:
     const seededFiles = {recent_files_json};
     const form = document.querySelector("form");
     const modeInputs = document.querySelectorAll('input[name="download_mode"]');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const defaultButtonLabel = submitButton.textContent;
+    const statusSection = document.querySelector(".status-panel");
+    const jobBanner = document.getElementById("job-banner");
+    let lastHighlightedJobId = "";
 
     function syncMode() {{
       const selected = document.querySelector('input[name="download_mode"]:checked')?.value;
@@ -800,6 +841,13 @@ def render_page(error_message: str = "") -> str:
     modeInputs.forEach((input) => input.addEventListener("change", syncMode));
     syncMode();
 
+    form.addEventListener("submit", () => {{
+      submitButton.disabled = true;
+      submitButton.textContent = "Đang xử lý...";
+      showBanner("running", "Đã nhận link. Hệ thống đang xử lý, trang sẽ tự cập nhật khi có kết quả.");
+      statusSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }});
+
     function escapeHtml(value) {{
       return String(value || "")
         .replace(/&/g, "&amp;")
@@ -808,12 +856,49 @@ def render_page(error_message: str = "") -> str:
         .replace(/"/g, "&quot;");
     }}
 
+    function showBanner(kind, message) {{
+      jobBanner.className = `job-banner show ${kind}`;
+      jobBanner.textContent = message;
+    }}
+
+    function updateBannerFromJobs(items) {{
+      const latest = items[0];
+      if (!latest) {{
+        return;
+      }}
+      if (latest.status === "running") {{
+        showBanner("running", "Đang xử lý video. Chờ một chút, khi xong sẽ hiện nút lưu vào máy.");
+        return;
+      }}
+      if (latest.status === "failed") {{
+        showBanner("failed", "Lần tải gần nhất chưa thành công. Kéo xuống xem log rồi thử lại.");
+        submitButton.disabled = false;
+        submitButton.textContent = defaultButtonLabel;
+        return;
+      }}
+      if (latest.downloadable_url) {{
+        showBanner("done", "Xong rồi. Kéo xuống ngay bên dưới và bấm nút Lưu vào máy.");
+        submitButton.disabled = false;
+        submitButton.textContent = defaultButtonLabel;
+        if (lastHighlightedJobId !== latest.id) {{
+          lastHighlightedJobId = latest.id;
+          statusSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+        return;
+      }}
+      submitButton.disabled = false;
+      submitButton.textContent = defaultButtonLabel;
+    }}
+
     function renderJobs(items) {{
       const root = document.getElementById("job-list");
       if (!items.length) {{
         root.innerHTML = '<div class="status-empty">Chưa có lần tải nào. Dán link rồi bấm nút để bắt đầu.</div>';
+        submitButton.disabled = false;
+        submitButton.textContent = defaultButtonLabel;
         return;
       }}
+      updateBannerFromJobs(items);
       root.innerHTML = items.map((job) => {{
         const logs = (job.log_lines || []).join("\\n");
         const output = job.downloadable_path || job.output_path || "se hien khi co";
@@ -825,22 +910,22 @@ def render_page(error_message: str = "") -> str:
               ? '<div class="status-note failed">Lần tải này chưa thành công. Bạn có thể kiểm tra log bên dưới rồi thử lại.</div>'
               : "";
         const linkHtml = job.downloadable_url
-          ? `<a class="download-link primary" href="${{escapeHtml(job.downloadable_url)}}" download>Lưu vào máy</a>`
+          ? `<a class="download-link primary" href="${escapeHtml(job.downloadable_url)}" download>Lưu vào máy</a>`
           : "";
         return `
           <article class="status-item">
             <div class="status-head">
               <div>
-                <div class="status-title">${{escapeHtml(job.title)}}</div>
-                <div class="status-meta">${{escapeHtml(job.created_label || "")}} · exit ${{escapeHtml(job.return_code ?? "-")}}</div>
+                <div class="status-title">${escapeHtml(job.title)}</div>
+                <div class="status-meta">${escapeHtml(job.created_label || "")} · exit ${escapeHtml(job.return_code ?? "-")}</div>
               </div>
-              <span class="status-badge ${{escapeHtml(job.status)}}">${{escapeHtml(job.status)}}</span>
+              <span class="status-badge ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
             </div>
             <div class="status-body">
-              <div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>
-              ${{statusNote}}
-              ${{linkHtml}}
-              <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
+              <div class="status-path"><strong>File sẽ nằm ở:</strong> ${escapeHtml(output)}</div>
+              ${statusNote}
+              ${linkHtml}
+              <pre class="status-log">${escapeHtml(logs || "Đang chờ log...")}</pre>
             </div>
           </article>
         `;
@@ -855,15 +940,15 @@ def render_page(error_message: str = "") -> str:
       }}
       root.innerHTML = `
         <div class="library-list">
-          ${{items.map((file) => `
+          ${items.map((file) => `
             <article class="library-item">
               <div>
-                <div class="library-name">${{escapeHtml(file.name)}}</div>
-                <div class="library-meta">${{escapeHtml(file.size)}} · ${{escapeHtml(file.path)}}</div>
+                <div class="library-name">${escapeHtml(file.name)}</div>
+                <div class="library-meta">${escapeHtml(file.size)} · ${escapeHtml(file.path)}</div>
               </div>
-              <a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a>
+              <a class="download-link" href="${escapeHtml(file.url)}" download>Tải file này</a>
             </article>
-          `).join("")}}
+          `).join("")}
         </div>
       `;
     }}
@@ -873,7 +958,7 @@ def render_page(error_message: str = "") -> str:
 
     async function refreshJobs() {{
       try {{
-        const response = await fetch("/api/jobs", {{ cache: "no-store" }});
+        const response = await fetch("/api/jobs", { cache: "no-store" });
         if (!response.ok) return;
         renderJobs(await response.json());
       }} catch (_error) {{
@@ -882,7 +967,7 @@ def render_page(error_message: str = "") -> str:
 
     async function refreshFiles() {{
       try {{
-        const response = await fetch("/api/files", {{ cache: "no-store" }});
+        const response = await fetch("/api/files", { cache: "no-store" });
         if (!response.ok) return;
         renderRecentFiles(await response.json());
       }} catch (_error) {{
@@ -929,7 +1014,7 @@ class AppHandler(BaseHTTPRequestHandler):
         raw_form = urllib.parse.parse_qs(body, keep_blank_values=True)
         form = {key: values[-1] for key, values in raw_form.items()}
 
-        try:
+        try {{
             if parsed.path == "/jobs/download":
                 create_download_job(form)
             elif parsed.path == "/jobs/batch":
