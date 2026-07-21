@@ -17,6 +17,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+import re
 from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -275,35 +276,114 @@ def build_common_download_args(form: Dict[str, str]) -> List[str]:
     return args
 
 
+def parse_edit_prompt(prompt: str) -> Dict[str, str]:
+    text = " ".join((prompt or "").strip().lower().split())
+    if not text:
+        return {}
+
+    parsed: Dict[str, str] = {}
+
+    seconds_at_start = re.search(r"(?:cắt|bỏ|đổi)\s*(\d+)\s*giây đầu", text)
+    if seconds_at_start:
+        parsed["start"] = seconds_at_start.group(1)
+
+    resize_match = re.search(r"(\d{3,4})\s*[:x]\s*(\d{3,4})", text)
+    if resize_match:
+        parsed["resize"] = f"{resize_match.group(1)}:{resize_match.group(2)}"
+
+    if any(keyword in text for keyword in ("9:16", "video dọc", "dọc", "reel", "shorts", "story")):
+        parsed["preset_name"] = "reel"
+    elif any(keyword in text for keyword in ("1:1", "vuông", "square")):
+        parsed["preset_name"] = "square"
+
+    if any(keyword in text for keyword in ("tắt tiếng", "mute", "không âm thanh")):
+        parsed["mute"] = "on"
+
+    if any(keyword in text for keyword in ("mp3", "chỉ âm thanh", "lấy âm thanh")):
+        parsed["extract_audio"] = "on"
+
+    wants_variation = any(
+        keyword in text
+        for keyword in (
+            "khác bản gốc",
+            "không trùng",
+            "đỡ trùng",
+            "reup",
+            "re-upload",
+            "repost",
+            "zoom nhẹ",
+            "đổi 3 giây đầu",
+            "thay 3 giây đầu",
+            "cắt 3 giây đầu",
+        )
+    )
+    if wants_variation:
+        parsed["video_filter"] = "scale=iw*1.04:ih*1.04,crop=iw/1.04:ih/1.04"
+        if "start" not in parsed:
+            parsed["start"] = "2"
+        if "preset_name" not in parsed:
+            parsed["preset_name"] = "variation"
+
+    return parsed
+
+
 def build_edit_args(form: Dict[str, str]) -> List[str]:
+    merged = dict(form)
+    prompt_updates = parse_edit_prompt(form.get("edit_prompt", ""))
+    for key, value in prompt_updates.items():
+        if not merged.get(key):
+            merged[key] = value
+
     args: List[str] = []
-    for key in ("start", "end", "duration", "crop", "resize"):
-        value = form.get(key, "").strip()
+    for key in ("start", "end", "duration", "crop", "resize", "video_filter"):
+        value = merged.get(key, "").strip()
         if value:
-            args.extend([f"--{key}", value])
-    preset_name = form.get("preset_name", "none").strip() or "none"
+            option_name = "--video-filter" if key == "video_filter" else f"--{key}"
+            args.extend([option_name, value])
+    preset_name = merged.get("preset_name", "none").strip() or "none"
     args.extend(["--preset-name", preset_name])
-    if bool_from_form(form.get("mute")):
+    if bool_from_form(merged.get("mute")):
         args.append("--mute")
-    if bool_from_form(form.get("extract_audio")):
+    if bool_from_form(merged.get("extract_audio")):
         args.append("--extract-audio")
-    video_codec = form.get("video_codec", "libx264").strip() or "libx264"
-    encode_preset = form.get("encode_preset", "slow").strip() or "slow"
-    crf = form.get("crf", "18").strip() or "18"
+    video_codec = merged.get("video_codec", "libx264").strip() or "libx264"
+    encode_preset = merged.get("encode_preset", "slow").strip() or "slow"
+    crf = merged.get("crf", "18").strip() or "18"
     args.extend(["--video-codec", video_codec, "--crf", crf, "--encode-preset", encode_preset])
-    output = form.get("output", "").strip()
+    output = merged.get("output", "").strip()
     if output:
         args.extend(["--output", output])
+
+    has_edit_intent = any(
+        [
+            prompt_updates,
+            merged.get("start", "").strip(),
+            merged.get("end", "").strip(),
+            merged.get("duration", "").strip(),
+            merged.get("crop", "").strip(),
+            merged.get("resize", "").strip(),
+            merged.get("video_filter", "").strip(),
+            preset_name != "none",
+            bool_from_form(merged.get("mute")),
+            bool_from_form(merged.get("extract_audio")),
+            merged.get("output", "").strip(),
+        ]
+    )
+    if not has_edit_intent:
+        return []
     return args
 
 
 def create_download_job(form: Dict[str, str]) -> Job:
     url = form.get("url", "").strip()
     mode = form.get("mode", "download").strip() or "download"
+    edit_args = build_edit_args(form)
+    if mode == "download" and edit_args:
+        mode = "workflow"
     command = ["python3", str(SCRIPT_PATH), mode, url]
     command.extend(build_common_download_args(form))
     if mode == "workflow":
-        command.extend(build_edit_args(form))
+        command.extend(edit_args)
     title = f"{mode}: {url[:72]}"
     output_path = str(ROOT_DIR / (form.get("output_dir", "downloads") or "downloads"))
     return make_job(title, command, output_path=output_path)
@@ -649,8 +729,8 @@ def render_page(error_message: str = "") -> str:
       display: grid;
       justify-items: center;
       text-align: center;
-      gap: 12px;
-      padding-top: 8px;
+      gap: 10px;
+      padding-top: 4px;
     }}
     .hero-kicker {{
       display: inline-flex;
@@ -668,12 +748,20 @@ def render_page(error_message: str = "") -> str:
     }}
     .intro h1 {{
       margin: 0;
-      font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      max-width: none;
-      white-space: nowrap;
-      font-size: clamp(30px, 4.2vw, 44px);
-      line-height: 1.04;
-      letter-spacing: -0.03em;
+      max-width: 760px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }}
+    .hero-subtitle {{
+      max-width: 720px;
+      margin: 0;
+      color: #7b6651;
+      font-size: clamp(15px, 1.9vw, 18px);
+      line-height: 1.5;
+      text-align: center;
     }}
     form {{
       display: grid;
@@ -715,6 +803,20 @@ def render_page(error_message: str = "") -> str:
     .field:focus {{
       border-color: rgba(208, 109, 45, 0.55);
       box-shadow: 0 0 0 6px rgba(208, 109, 45, 0.10);
+    }}
+    .field.multiline {{
+      min-height: 110px;
+      padding: 18px 20px;
+      resize: vertical;
+      white-space: normal;
+      line-height: 1.5;
+    }}
+    .form-note {{
+      margin: -4px 2px 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+      text-align: center;
     }}
     .checks {{
       display: flex;
@@ -806,6 +908,10 @@ def render_page(error_message: str = "") -> str:
         padding: 0 18px;
         font-size: 18px;
       }}
+      .field.multiline {{
+        min-height: 96px;
+        padding: 16px 18px;
+      }}
       .cta {{
         min-height: 68px;
         border-radius: 20px;
@@ -813,9 +919,12 @@ def render_page(error_message: str = "") -> str:
         padding: 16px 20px;
       }}
       .intro h1 {{
-        max-width: none;
-        font-size: clamp(22px, 4.7vw, 28px);
-        line-height: 1.08;
+        max-width: 100%;
+        font-size: clamp(20px, 4vw, 26px);
+        line-height: 1.14;
+      }}
+      .hero-subtitle {{
+        font-size: 15px;
       }}
       .section-card {{
         padding: 18px;
@@ -875,14 +984,18 @@ def render_page(error_message: str = "") -> str:
         width: auto;
       }}
       .intro h1 {{
-        max-width: none;
         width: 100%;
-        white-space: nowrap;
-        font-size: clamp(17px, 4.6vw, 20px);
-        line-height: 1.14;
-        letter-spacing: -0.015em;
+        max-width: 100%;
+        font-size: clamp(18px, 5vw, 22px);
+        line-height: 1.28;
+        letter-spacing: -0.01em;
         text-align: center;
-        font-weight: 600;
+        font-weight: 700;
+      }}
+      .hero-subtitle {{
+        max-width: 290px;
+        font-size: 14px;
+        line-height: 1.55;
       }}
       .intro {{
         justify-items: center;
@@ -897,6 +1010,13 @@ def render_page(error_message: str = "") -> str:
       }}
       .field::placeholder {{
         font-size: 17px;
+      }}
+      .field.multiline {{
+        min-height: 88px;
+        padding: 14px 16px;
+      }}
+      .form-note {{
+        font-size: 12px;
       }}
       .cta {{
         min-height: 62px;
@@ -924,7 +1044,8 @@ def render_page(error_message: str = "") -> str:
     <section class="quick-card">
       <div class="intro">
         <div class="hero-kicker">TikTok • Facebook • YouTube • X</div>
-        <h1>Tải video sạch logo, chất lượng cao</h1>
+        <h1>Tải video chất lượng cao</h1>
+        <p class="hero-subtitle">Không dính logo nền tảng.</p>
       </div>
 
       <form method="post" action="/jobs/download">
@@ -938,8 +1059,14 @@ def render_page(error_message: str = "") -> str:
           <input class="field" name="url" placeholder="Dán link video vào đây..." required>
         </div>
 
+        <div class="label-block">
+          <strong>Mô tả chỉnh sửa</strong>
+          <textarea class="field multiline" name="edit_prompt" placeholder="Ví dụ: cắt 3 giây đầu, làm dọc 9:16, zoom nhẹ cho khác bản gốc"></textarea>
+          <div class="form-note">Để trống nếu chỉ muốn tải. Có thể ghi tự nhiên như: cắt 3 giây đầu, làm dọc 9:16, tắt tiếng, làm khác bản gốc.</div>
+        </div>
+
         <div class="actions">
-          <button class="cta" type="submit">Tải video ngay</button>
+          <button class="cta" type="submit">Tải và xử lý ngay</button>
         </div>
       </form>
 
@@ -1053,7 +1180,7 @@ def render_page(error_message: str = "") -> str:
     function renderJobs(items) {{
       const root = document.getElementById("job-list");
       if (!items.length) {{
-        root.innerHTML = '<div class="status-empty">Chưa có lần tải nào. Dán link rồi bấm nút để bắt đầu.</div>';
+        root.innerHTML = '<div class="status-empty">Chưa có lần tải nào. Dán link rồi bấm tải để bắt đầu.</div>';
         submitButton.disabled = false;
         submitButton.textContent = defaultButtonLabel;
         return;
@@ -1062,15 +1189,13 @@ def render_page(error_message: str = "") -> str:
       const latest = items[0];
       const history = items.slice(1, 4);
       const latestHtml = latest ? (() => {{
-        const logs = (latest.log_lines || []).join("\\n");
-        const output = latest.downloadable_path || latest.output_path || "Sẽ hiện khi xử lý xong";
         const displayTitle = latest.display_title || latest.title || "Trạng thái tải";
         const primaryActionUrl = latest.previewable_url || latest.downloadable_url || "";
-        const primaryActionLabel = latest.previewable_url ? "Mở video" : "Lưu vào máy";
+        const primaryActionLabel = "Lưu vào máy";
         const saveCallout = primaryActionUrl
           ? `
             <div class="save-callout">
-              <strong>${{latest.previewable_url ? "Xong rồi, mở video" : "Xong rồi, bấm để tải về"}}</strong>
+              <strong>Xong rồi, bấm để lưu</strong>
               <p>${{latest.previewable_url ? "Bấm Chia sẻ -> Lưu video." : "Bấm nút bên dưới để lưu file về máy."}}</p>
               <a class="download-link primary" href="${{escapeHtml(primaryActionUrl)}}"${{latest.previewable_url ? "" : " download"}}>${{primaryActionLabel}}</a>
             </div>
@@ -1093,8 +1218,6 @@ def render_page(error_message: str = "") -> str:
             <div class="status-body">
               ${{saveCallout}}
               ${{statusNote}}
-              ${{latest.status === "done" && output ? `<div class="mini-hint">${{escapeHtml(output.split("/").pop() || "")}}</div>` : ""}}
-              
             </div>
           </article>
         `;
@@ -1205,7 +1328,6 @@ def render_download_missing_page() -> str:
 
 def render_media_save_page(job: Job, media_url: str) -> str:
     raw_file_name = Path(job.downloadable_path or job.output_path).name or "video"
-    file_name = html.escape(raw_file_name)
     content_type, _encoding = mimetypes.guess_type(job.downloadable_path or "")
     content_type = content_type or "application/octet-stream"
     is_audio = bool(content_type and content_type.startswith("audio/"))
@@ -1215,8 +1337,6 @@ def render_media_save_page(job: Job, media_url: str) -> str:
         else f'<video controls playsinline preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></video>'
     )
     share_label = "Lưu vào Ảnh" if not is_audio else "Chia sẻ file"
-    open_label = "Mở video toàn màn hình" if not is_audio else "Mở file"
-    fallback_label = "Tải file về máy"
     save_tip = "Bấm Chia sẻ -> Lưu video." if not is_audio else "Bấm Chia sẻ hoặc Tải xuống để lưu file."
     return f"""<!doctype html>
 <html lang="vi">
@@ -1260,17 +1380,10 @@ def render_media_save_page(job: Job, media_url: str) -> str:
     }}
     h1 {{
       margin: 0;
-      font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: clamp(38px, 7vw, 56px);
-      line-height: 0.95;
+      font-size: clamp(24px, 5.5vw, 34px);
+      line-height: 1.15;
       text-align: center;
-    }}
-    p {{
-      margin: 0;
-      color: var(--muted);
-      font-size: 17px;
-      line-height: 1.6;
-      text-align: center;
+      font-weight: 800;
     }}
     .tip {{
       padding: 14px 16px;
@@ -1314,23 +1427,14 @@ def render_media_save_page(job: Job, media_url: str) -> str:
       background: rgba(255,255,255,0.86);
       border: 1px solid rgba(183, 121, 51, 0.18);
     }}
-    .file-name {{
-      font-size: 14px;
-      line-height: 1.55;
-      color: var(--muted);
-      word-break: break-word;
-      text-align: center;
-    }}
   </style>
 </head>
 <body>
   <main class="shell">
     <section class="card">
-      <h1>Mở video để lưu</h1>
-      <p>Video đã sẵn sàng.</p>
+      <h1>Lưu video về máy</h1>
       <div class="tip">{html.escape(save_tip)}</div>
       {media_tag}
-      <div class="file-name">{file_name}</div>
       <div class="actions">
         <button type="button" class="button primary" id="share-file">{share_label}</button>
         <a class="button secondary" href="/">Quay về trang chính</a>

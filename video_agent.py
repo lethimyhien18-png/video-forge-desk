@@ -31,6 +31,10 @@ EDIT_PRESETS = {
     "shorts": {"resize": "1080:1920"},
     "story": {"resize": "1080:1920"},
     "square": {"resize": "1080:1080"},
+    "variation": {
+        "video_filter": "scale=iw*1.04:ih*1.04,crop=iw/1.04:ih/1.04",
+        "start": "2",
+    },
 }
 
 
@@ -41,6 +45,7 @@ class EditOptions:
     duration: Optional[str] = None
     crop: Optional[str] = None
     resize: Optional[str] = None
+    video_filter: Optional[str] = None
     video_codec: str = "libx264"
     crf: int = 18
     preset: str = "slow"
@@ -138,6 +143,10 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Resize in WIDTH:HEIGHT format, e.g. 1080:1920",
     )
     edit.add_argument(
+        "--video-filter",
+        help="Extra ffmpeg video filter chain, e.g. scale=iw*1.04:ih*1.04,crop=iw/1.04:ih/1.04",
+    )
+    edit.add_argument(
         "--mute",
         action="store_true",
         help="Remove audio from the output video",
@@ -206,6 +215,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     )
     workflow.add_argument("--crop")
     workflow.add_argument("--resize")
+    workflow.add_argument("--video-filter")
     workflow.add_argument("--mute", action="store_true")
     workflow.add_argument(
         "--video-codec",
@@ -362,6 +372,8 @@ def resolve_edit_output(input_file: Path, output: Optional[str], extract_audio: 
 
 def build_video_filters(options: EditOptions) -> List[str]:
     filters: List[str] = []
+    if options.video_filter:
+        filters.append(options.video_filter)
     if options.crop:
         filters.append(f"crop={options.crop}")
     if options.resize:
@@ -377,6 +389,7 @@ def apply_edit_preset(options: EditOptions, preset_name: str) -> EditOptions:
         duration=options.duration,
         crop=options.crop,
         resize=options.resize or preset.get("resize"),
+        video_filter=options.video_filter or preset.get("video_filter"),
         video_codec=options.video_codec,
         crf=options.crf,
         preset=options.preset,
@@ -390,6 +403,7 @@ def apply_edit_preset(options: EditOptions, preset_name: str) -> EditOptions:
 def should_stream_copy(options: EditOptions) -> bool:
     return (
         not options.extract_audio
+        and not options.video_filter
         and not options.crop
         and not options.resize
         and not options.mute
@@ -485,6 +499,7 @@ def run_edit(args: argparse.Namespace) -> int:
         duration=args.duration,
         crop=args.crop,
         resize=args.resize,
+        video_filter=args.video_filter,
         video_codec=args.video_codec,
         crf=args.crf,
         preset=args.encode_preset,
@@ -497,7 +512,14 @@ def run_edit(args: argparse.Namespace) -> int:
 
 
 def locate_latest_media(directory: str) -> Path:
-    files = [path for path in Path(directory).glob("*") if path.is_file()]
+    ignored_suffixes = {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
+    files = [
+        path
+        for path in Path(directory).rglob("*")
+        if path.is_file()
+        and not path.name.startswith(".")
+        and path.suffix.lower() not in ignored_suffixes
+    ]
     if not files:
         raise RuntimeError(f"No downloaded files found in {directory}")
     return max(files, key=lambda path: path.stat().st_mtime)
@@ -513,8 +535,10 @@ def run_workflow(args: argparse.Namespace) -> int:
             args.start,
             args.end,
             args.duration,
+            args.preset_name != "none",
             args.crop,
             args.resize,
+            args.video_filter,
             args.mute,
             args.extract_audio,
         ]
@@ -529,6 +553,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         duration=args.duration,
         crop=args.crop,
         resize=args.resize,
+        video_filter=args.video_filter,
         video_codec=args.video_codec,
         crf=args.crf,
         preset=args.encode_preset,
