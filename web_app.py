@@ -1179,14 +1179,17 @@ def render_download_missing_page() -> str:
 
 
 def render_media_save_page(job: Job, media_url: str) -> str:
-    file_name = html.escape(Path(job.downloadable_path or job.output_path).name or "video")
+    raw_file_name = Path(job.downloadable_path or job.output_path).name or "video"
+    file_name = html.escape(raw_file_name)
     content_type, _encoding = mimetypes.guess_type(job.downloadable_path or "")
+    content_type = content_type or "application/octet-stream"
     is_audio = bool(content_type and content_type.startswith("audio/"))
     media_tag = (
         f'<audio controls preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></audio>'
         if is_audio
         else f'<video controls playsinline preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></video>'
     )
+    share_label = "Lưu vào Ảnh" if not is_audio else "Chia sẻ file"
     open_label = "Mở video toàn màn hình" if not is_audio else "Mở file"
     fallback_label = "Tải file về máy"
     save_tip = "Bấm Chia sẻ -> Lưu video." if not is_audio else "Bấm Chia sẻ hoặc Tải xuống để lưu file."
@@ -1264,6 +1267,25 @@ def render_media_save_page(job: Job, media_url: str) -> str:
       display: grid;
       gap: 12px;
     }}
+    .share-status {{
+      display: none;
+      padding: 12px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }}
+    .share-status.show {{
+      display: block;
+    }}
+    .share-status.info {{
+      background: rgba(255, 186, 73, 0.18);
+      color: #7d4a00;
+    }}
+    .share-status.error {{
+      background: rgba(178, 34, 34, 0.10);
+      color: #8d1c1c;
+    }}
     .button {{
       display: inline-flex;
       justify-content: center;
@@ -1304,12 +1326,64 @@ def render_media_save_page(job: Job, media_url: str) -> str:
       {media_tag}
       <div class="file-name">{file_name}</div>
       <div class="actions">
+        <button type="button" class="button primary" id="share-file">{share_label}</button>
         <a class="button primary" href="{html.escape(media_url, quote=True)}">{open_label}</a>
         <a class="button secondary" href="/download/{html.escape(job.id, quote=True)}" download>{fallback_label}</a>
         <a class="button secondary" href="/">Quay lại trang chính</a>
       </div>
+      <div id="share-status" class="share-status info"></div>
     </section>
   </main>
+  <script>
+    const shareButton = document.getElementById("share-file");
+    const shareStatus = document.getElementById("share-status");
+    const mediaUrl = {json.dumps(media_url)};
+    const fileName = {json.dumps(raw_file_name)};
+    const fileType = {json.dumps(content_type)};
+
+    function setShareStatus(message, kind = "info") {{
+      shareStatus.className = `share-status show ${{kind}}`;
+      shareStatus.textContent = message;
+    }}
+
+    async function shareFileDirectly() {{
+      if (!navigator.share || !navigator.canShare) {{
+        setShareStatus("Máy này chưa hỗ trợ lưu trực tiếp. Hãy bấm 'Mở video toàn màn hình' rồi chọn Chia sẻ -> Lưu video.", "error");
+        return;
+      }}
+
+      shareButton.disabled = true;
+      shareButton.textContent = "Đang chuẩn bị...";
+      setShareStatus("Đang mở bảng chia sẻ của máy...", "info");
+
+      try {{
+        const response = await fetch(mediaUrl, {{ cache: "no-store" }});
+        if (!response.ok) {{
+          throw new Error("Không lấy được file video.");
+        }}
+
+        const blob = await response.blob();
+        const file = new File([blob], fileName, {{ type: fileType }});
+
+        if (!navigator.canShare({{ files: [file] }})) {{
+          throw new Error("Thiết bị này không cho chia sẻ file video trực tiếp.");
+        }}
+
+        await navigator.share({{ files: [file] }});
+        setShareStatus("Nếu bảng chia sẻ đã hiện, hãy chọn 'Lưu video'.", "info");
+      }} catch (error) {{
+        const message = error && error.name === "AbortError"
+          ? "Bạn đã đóng bảng chia sẻ. Nếu cần, bấm lại 'Lưu vào Ảnh'."
+          : "Chưa lưu trực tiếp được. Hãy bấm 'Mở video toàn màn hình' rồi chọn Chia sẻ -> Lưu video.";
+        setShareStatus(message, error && error.name === "AbortError" ? "info" : "error");
+      }} finally {{
+        shareButton.disabled = false;
+        shareButton.textContent = {json.dumps(share_label)};
+      }}
+    }}
+
+    shareButton.addEventListener("click", shareFileDirectly);
+  </script>
 </body>
 </html>"""
 
