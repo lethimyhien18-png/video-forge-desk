@@ -1195,13 +1195,7 @@ def render_page(error_message: str = "") -> str:
               ${{saveCallout}}
               ${{statusNote}}
               ${{latest.status === "done" && output ? `<div class="mini-hint">${{escapeHtml(output.split("/").pop() || "")}}</div>` : ""}}
-              <details class="technical-toggle">
-                <summary>Xem chi tiết kỹ thuật</summary>
-                <div class="technical-panel">
-                  <div class="technical-path"><strong>Đường dẫn file:</strong> ${{escapeHtml(output)}}</div>
-                  <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
-                </div>
-              </details>
+              
             </div>
           </article>
         `;
