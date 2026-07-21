@@ -313,6 +313,14 @@ def parse_edit_prompt(prompt: str) -> Dict[str, str]:
     if any(keyword in text for keyword in ("hiệu ứng", "đẹp hơn", "làm đẹp", "màu đẹp", "cinematic")):
         parsed["beautify"] = "on"
 
+    if any(keyword in text for keyword in ("nhạc nền", "background music", "bgm")):
+        if any(keyword in text for keyword in ("nhạc nền 2", "nhạc 2", "mẫu 2", "ấm áp", "warm")):
+            parsed["bg_music_track"] = "warm"
+        elif any(keyword in text for keyword in ("nhạc nền 3", "nhạc 3", "mẫu 3", "tươi", "bright")):
+            parsed["bg_music_track"] = "bright"
+        else:
+            parsed["bg_music_track"] = "soft"
+
     wants_variation = any(
         keyword in text
         for keyword in (
@@ -346,12 +354,13 @@ def build_edit_args(form: Dict[str, str]) -> List[str]:
             merged[key] = value
 
     args: List[str] = []
-    for key in ("start", "end", "duration", "crop", "resize", "video_filter", "overlay_text"):
+    for key in ("start", "end", "duration", "crop", "resize", "video_filter", "overlay_text", "bg_music_track"):
         value = merged.get(key, "").strip()
         if value:
             option_name = {
                 "video_filter": "--video-filter",
                 "overlay_text": "--overlay-text",
+                "bg_music_track": "--bg-music-track",
             }.get(key, f"--{key}")
             args.extend([option_name, value])
     preset_name = merged.get("preset_name", "none").strip() or "none"
@@ -382,6 +391,7 @@ def build_edit_args(form: Dict[str, str]) -> List[str]:
             merged.get("resize", "").strip(),
             merged.get("video_filter", "").strip(),
             merged.get("overlay_text", "").strip(),
+            merged.get("bg_music_track", "").strip(),
             preset_name != "none",
             bool_from_form(merged.get("mute")),
             bool_from_form(merged.get("extract_audio")),
@@ -1082,8 +1092,8 @@ def render_page(error_message: str = "") -> str:
 
         <div class="label-block">
           <strong>Mô tả chỉnh sửa</strong>
-          <textarea class="field multiline" name="edit_prompt" placeholder="Ví dụ: cắt 3 giây đầu, chữ chạy: Sale cuối tuần, lọc tiếng ồn, thêm hiệu ứng"></textarea>
-          <div class="form-note">Có thể ghi tự nhiên như: cắt 3 giây đầu, làm dọc 9:16, chữ chạy: giảm giá hôm nay, lọc tiếng ồn, thêm hiệu ứng.</div>
+          <textarea class="field multiline" name="edit_prompt" placeholder="Ví dụ: cắt 3 giây đầu, chữ chạy: Sale cuối tuần, lọc tiếng ồn, thêm hiệu ứng, nhạc nền nhẹ"></textarea>
+          <div class="form-note">Có thể ghi tự nhiên như: cắt 3 giây đầu, làm dọc 9:16, chữ chạy: giảm giá hôm nay, lọc tiếng ồn, thêm hiệu ứng, nhạc nền 2.</div>
         </div>
 
         <div class="actions">

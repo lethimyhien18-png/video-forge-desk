@@ -36,6 +36,12 @@ EDIT_PRESETS = {
         "start": "2",
     },
 }
+BUILTIN_MUSIC_TRACKS = {
+    "soft": "assets/music/soft-breeze.mp3",
+    "warm": "assets/music/warm-glow.mp3",
+    "bright": "assets/music/bright-morning.mp3",
+}
+FFMPEG_FILTER_CACHE: dict[str, bool] = {}
 
 
 @dataclass
@@ -47,6 +53,8 @@ class EditOptions:
     resize: Optional[str] = None
     video_filter: Optional[str] = None
     overlay_text: Optional[str] = None
+    bg_music_track: Optional[str] = None
+    bg_music_volume: float = 0.16
     video_codec: str = "libx264"
     crf: int = 18
     preset: str = "slow"
@@ -154,6 +162,17 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Running text shown on the video, e.g. 'Giảm giá cuối tuần'",
     )
     edit.add_argument(
+        "--bg-music-track",
+        choices=("soft", "warm", "bright"),
+        help="Add one built-in light background music track",
+    )
+    edit.add_argument(
+        "--bg-music-volume",
+        type=float,
+        default=0.16,
+        help="Background music volume from 0.0 to 1.0. Default 0.16.",
+    )
+    edit.add_argument(
         "--mute",
         action="store_true",
         help="Remove audio from the output video",
@@ -234,6 +253,8 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     workflow.add_argument("--resize")
     workflow.add_argument("--video-filter")
     workflow.add_argument("--overlay-text")
+    workflow.add_argument("--bg-music-track", choices=("soft", "warm", "bright"))
+    workflow.add_argument("--bg-music-volume", type=float, default=0.16)
     workflow.add_argument("--mute", action="store_true")
     workflow.add_argument("--denoise-audio", action="store_true")
     workflow.add_argument("--beautify", action="store_true")
@@ -390,6 +411,57 @@ def resolve_edit_output(input_file: Path, output: Optional[str], extract_audio: 
     return input_file.with_name(f"{input_file.stem}_edited{suffix}")
 
 
+def resolve_bg_music_track(track_name: Optional[str]) -> Optional[Path]:
+    if not track_name:
+        return None
+    relative_path = BUILTIN_MUSIC_TRACKS.get(track_name)
+    if not relative_path:
+        raise RuntimeError(f"Unknown background music track: {track_name}")
+    music_path = Path(__file__).resolve().parent / relative_path
+    if not music_path.exists():
+        raise RuntimeError(f"Missing built-in background music track: {music_path}")
+    return music_path
+
+
+def input_has_audio(input_file: Path) -> bool:
+    ffprobe_path = require_binary("ffprobe")
+    completed = subprocess.run(
+        [
+            ffprobe_path,
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=codec_type",
+            "-of",
+            "csv=p=0",
+            str(input_file),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=build_runtime_env(),
+    )
+    return completed.returncode == 0 and bool(completed.stdout.strip())
+
+
+def ffmpeg_has_filter(filter_name: str) -> bool:
+    if filter_name in FFMPEG_FILTER_CACHE:
+        return FFMPEG_FILTER_CACHE[filter_name]
+    ffmpeg_path = require_binary("ffmpeg")
+    completed = subprocess.run(
+        [ffmpeg_path, "-hide_banner", "-filters"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=build_runtime_env(),
+    )
+    supported = completed.returncode == 0 and filter_name in completed.stdout
+    FFMPEG_FILTER_CACHE[filter_name] = supported
+    return supported
+
+
 def escape_drawtext(text: str) -> str:
     return (
         text.replace("\\", "\\\\")
@@ -413,7 +485,7 @@ def build_video_filters(options: EditOptions) -> List[str]:
     if options.beautify:
         filters.append("eq=contrast=1.05:brightness=0.02:saturation=1.12")
         filters.append("unsharp=5:5:0.6:3:3:0.2")
-    if options.overlay_text:
+    if options.overlay_text and ffmpeg_has_filter("drawtext"):
         overlay_text = escape_drawtext(options.overlay_text)
         filters.append(
             "drawtext="
@@ -438,6 +510,10 @@ def build_audio_filters(options: EditOptions) -> List[str]:
     return filters
 
 
+def clamp_music_volume(volume: float) -> float:
+    return max(0.03, min(volume, 0.45))
+
+
 def apply_edit_preset(options: EditOptions, preset_name: str) -> EditOptions:
     preset = EDIT_PRESETS[preset_name]
     merged = EditOptions(
@@ -448,6 +524,8 @@ def apply_edit_preset(options: EditOptions, preset_name: str) -> EditOptions:
         resize=options.resize or preset.get("resize"),
         video_filter=options.video_filter or preset.get("video_filter"),
         overlay_text=options.overlay_text,
+        bg_music_track=options.bg_music_track,
+        bg_music_volume=options.bg_music_volume,
         video_codec=options.video_codec,
         crf=options.crf,
         preset=options.preset,
@@ -467,6 +545,7 @@ def should_stream_copy(options: EditOptions) -> bool:
         and not options.crop
         and not options.resize
         and not options.overlay_text
+        and not options.bg_music_track
         and not options.mute
         and not options.denoise_audio
         and not options.beautify
@@ -482,11 +561,17 @@ def build_edit_command(
     input_path = Path(input_file)
     output_path = resolve_edit_output(input_path, output, options.extract_audio)
     command = [ffmpeg_path, "-y"]
+    bg_music_path = resolve_bg_music_track(options.bg_music_track)
+    if options.overlay_text and not ffmpeg_has_filter("drawtext"):
+        print("Warning: drawtext filter is unavailable here, so running text will be skipped.", file=sys.stderr)
 
     if options.start:
         command.extend(["-ss", options.start])
 
     command.extend(["-i", str(input_path)])
+
+    if bg_music_path:
+        command.extend(["-stream_loop", "-1", "-i", str(bg_music_path)])
 
     if options.end:
         command.extend(["-to", options.end])
@@ -505,7 +590,41 @@ def build_edit_command(
     if filters:
         command.extend(["-vf", ",".join(filters)])
 
-    if options.mute:
+    if bg_music_path:
+        music_volume = clamp_music_volume(options.bg_music_volume)
+        has_original_audio = input_has_audio(input_path) and not options.mute
+        if has_original_audio:
+            audio_filters = build_audio_filters(options)
+            original_chain = ",".join(audio_filters) if audio_filters else "anull"
+            command.extend(
+                [
+                    "-filter_complex",
+                    (
+                        f"[0:a]{original_chain}[maina];"
+                        f"[1:a]volume={music_volume:.2f}[bga];"
+                        "[maina][bga]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+                    ),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "[aout]",
+                    "-shortest",
+                ]
+            )
+        else:
+            command.extend(
+                [
+                    "-filter_complex",
+                    f"[1:a]volume={music_volume:.2f}[aout]",
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "[aout]",
+                    "-shortest",
+                ]
+            )
+        command.extend(["-c:a", "aac"])
+    elif options.mute:
         command.append("-an")
     else:
         audio_filters = build_audio_filters(options)
@@ -567,6 +686,8 @@ def run_edit(args: argparse.Namespace) -> int:
         resize=args.resize,
         video_filter=args.video_filter,
         overlay_text=args.overlay_text,
+        bg_music_track=args.bg_music_track,
+        bg_music_volume=args.bg_music_volume,
         video_codec=args.video_codec,
         crf=args.crf,
         preset=args.encode_preset,
@@ -609,6 +730,7 @@ def run_workflow(args: argparse.Namespace) -> int:
             args.resize,
             args.video_filter,
             args.overlay_text,
+            args.bg_music_track,
             args.mute,
             args.extract_audio,
             args.denoise_audio,
@@ -627,6 +749,8 @@ def run_workflow(args: argparse.Namespace) -> int:
         resize=args.resize,
         video_filter=args.video_filter,
         overlay_text=args.overlay_text,
+        bg_music_track=args.bg_music_track,
+        bg_music_volume=args.bg_music_volume,
         video_codec=args.video_codec,
         crf=args.crf,
         preset=args.encode_preset,
