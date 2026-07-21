@@ -76,12 +76,14 @@ def truncate_text(value: str, limit: int = 72) -> str:
 
 def build_job_display_title(job: Job) -> str:
     if job.downloadable_path:
-        return truncate_text(Path(job.downloadable_path).stem, 78)
+        if job.previewable_url:
+            return "Video đã sẵn sàng"
+        return "File đã sẵn sàng"
     source = job.title.replace("workflow:", "").replace("download:", "").replace("edit:", "").strip()
     if source.startswith("http://") or source.startswith("https://"):
         parsed = urllib.parse.urlparse(source)
-        compact = parsed.netloc + (parsed.path or "")
-        return truncate_text(compact, 64)
+        domain = parsed.netloc.replace("www.", "")
+        return truncate_text(domain or "Liên kết video", 36)
     return truncate_text(source, 78)
 
 
@@ -496,19 +498,20 @@ def render_page(error_message: str = "") -> str:
       overflow: hidden;
     }}
     .status-head {{
-      padding: 14px 16px;
+      padding: 16px 18px 10px;
       display: flex;
       justify-content: space-between;
       gap: 12px;
       align-items: center;
     }}
     .status-title {{
-      font-size: 20px;
+      font-size: 24px;
       font-weight: 800;
-      line-height: 1.35;
+      line-height: 1.15;
     }}
     .status-meta {{
-      font-size: 14px;
+      margin-top: 4px;
+      font-size: 13px;
       color: var(--muted);
     }}
     .status-badge {{
@@ -524,9 +527,9 @@ def render_page(error_message: str = "") -> str:
     .done {{ background: rgba(76,175,80,0.18); color: #1f6a2b; }}
     .failed {{ background: rgba(178,34,34,0.12); color: #8d1c1c; }}
     .status-body {{
-      padding: 0 16px 16px;
+      padding: 0 18px 18px;
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }}
     .status-log {{
       margin: 0;
@@ -550,6 +553,9 @@ def render_page(error_message: str = "") -> str:
       font-weight: 800;
     }}
     .download-link.primary {{
+      justify-content: center;
+      width: 100%;
+      min-height: 60px;
       padding: 14px 18px;
       background: linear-gradient(135deg, #cf6a2f, #d97b22);
       color: #fffaf2;
@@ -558,33 +564,29 @@ def render_page(error_message: str = "") -> str:
     }}
     .save-callout {{
       padding: 18px;
-      border-radius: 22px;
-      background: linear-gradient(180deg, rgba(255,248,239,0.98), rgba(255,241,225,0.94));
-      border: 1px solid rgba(208, 109, 45, 0.22);
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,250,245,0.98), rgba(255,244,231,0.94));
+      border: 1px solid rgba(208, 109, 45, 0.16);
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }}
     .save-callout strong {{
-      font-size: clamp(22px, 3vw, 28px);
-      line-height: 1.1;
+      font-size: clamp(20px, 2.8vw, 26px);
+      line-height: 1.12;
     }}
     .save-callout p {{
       margin: 0;
       color: #855022;
-      font-size: 15px;
-      line-height: 1.5;
+      font-size: 14px;
+      line-height: 1.45;
       font-weight: 700;
     }}
     .status-note {{
       padding: 12px 14px;
       border-radius: 16px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
-      line-height: 1.5;
-    }}
-    .status-note.done {{
-      background: rgba(76,175,80,0.14);
-      color: #1f6a2b;
+      line-height: 1.45;
     }}
     .status-note.running {{
       background: rgba(255,186,73,0.20);
@@ -594,27 +596,10 @@ def render_page(error_message: str = "") -> str:
       background: rgba(178,34,34,0.10);
       color: #8d1c1c;
     }}
-    .result-card {{
-      padding: 16px 18px;
-      border-radius: 20px;
-      background: rgba(255,255,255,0.74);
-      border: 1px solid rgba(31, 24, 18, 0.08);
-      display: grid;
-      gap: 8px;
-    }}
-    .result-label {{
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #8f5b24;
-    }}
-    .result-name {{
-      font-size: 17px;
-      font-weight: 800;
+    .mini-hint {{
+      font-size: 13px;
+      color: var(--muted);
       line-height: 1.45;
-      word-break: break-word;
-      color: #2a2018;
     }}
     .technical-toggle {{
       margin-top: 2px;
@@ -639,46 +624,6 @@ def render_page(error_message: str = "") -> str:
     .technical-path {{
       font-size: 14px;
       color: var(--muted);
-      word-break: break-word;
-    }}
-    .library {{
-      margin-top: 8px;
-      display: grid;
-      gap: 12px;
-    }}
-    .library h2 {{
-      margin: 0;
-      font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: clamp(30px, 3vw, 40px);
-    }}
-    .library-empty {{
-      color: var(--muted);
-      font-size: clamp(18px, 2vw, 22px);
-    }}
-    .library-list {{
-      display: grid;
-      gap: 10px;
-    }}
-    .library-item {{
-      padding: 14px 16px;
-      border: 1px solid rgba(23, 20, 17, 0.10);
-      border-radius: 20px;
-      background: rgba(255,255,255,0.72);
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-    }}
-    .library-name {{
-      font-weight: 800;
-      font-size: 15px;
-      line-height: 1.45;
-      word-break: break-word;
-    }}
-    .library-meta {{
-      color: var(--muted);
-      font-size: 13px;
       word-break: break-word;
     }}
     .history-toggle {{
@@ -972,11 +917,6 @@ def render_page(error_message: str = "") -> str:
           <h2>Trạng thái tải</h2>
           <div id="job-list"></div>
         </section>
-
-        <section id="library-section" class="library section-card">
-          <h2>File đã tải</h2>
-          <div id="recent-files"></div>
-        </section>
       </div>
     </section>
   </main>
@@ -989,7 +929,6 @@ def render_page(error_message: str = "") -> str:
     const submitButton = form.querySelector('button[type="submit"]');
     const defaultButtonLabel = submitButton.textContent;
     const statusSection = document.querySelector(".status-panel");
-    const librarySection = document.getElementById("library-section");
     const jobBanner = document.getElementById("job-banner");
     let lastHighlightedJobId = "";
 
@@ -1094,22 +1033,19 @@ def render_page(error_message: str = "") -> str:
       const latestHtml = latest ? (() => {{
         const logs = (latest.log_lines || []).join("\\n");
         const output = latest.downloadable_path || latest.output_path || "Sẽ hiện khi xử lý xong";
-        const displayTitle = latest.display_title || latest.title || "Video đã tải";
-        const displayFileName = latest.display_file_name || "";
+        const displayTitle = latest.display_title || latest.title || "Trạng thái tải";
         const primaryActionUrl = latest.previewable_url || latest.downloadable_url || "";
         const primaryActionLabel = latest.previewable_url ? "Mở để lưu vào Ảnh" : "Lưu vào máy";
         const saveCallout = primaryActionUrl
           ? `
             <div class="save-callout">
-              <strong>${{latest.previewable_url ? "Xong rồi, mở video để lưu vào Ảnh" : "Xong rồi, bấm đây để lưu vào máy"}}</strong>
-              <p>${{latest.previewable_url ? "Nếu đang dùng điện thoại, bấm nút bên dưới rồi chọn Lưu video hoặc Lưu vào Ảnh." : "Sau khi bấm nút bên dưới, máy sẽ mở phần lưu file hoặc tải xuống."}}</p>
+              <strong>${{latest.previewable_url ? "Xong rồi, mở video để lưu" : "Xong rồi, bấm để tải về"}}</strong>
+              <p>${{latest.previewable_url ? "Bấm Chia sẻ -> Lưu video." : "Bấm nút bên dưới để lưu file về máy."}}</p>
               <a class="download-link primary" href="${{escapeHtml(primaryActionUrl)}}"${{latest.previewable_url ? "" : " download"}}>${{primaryActionLabel}}</a>
             </div>
           `
           : "";
-        const statusNote = primaryActionUrl
-          ? `<div class="status-note done">${{latest.previewable_url ? "Video đã sẵn sàng. Bấm nút mở video để lưu vào Ảnh dễ hơn trên điện thoại." : "Video đã sẵn sàng. Bạn chỉ cần bấm nút Lưu vào máy."}}</div>`
-          : latest.status === "running"
+        const statusNote = latest.status === "running"
             ? '<div class="status-note running">Đang xử lý video. Chờ thêm một chút, nút lưu sẽ hiện ngay tại đây.</div>'
             : latest.status === "failed"
               ? '<div class="status-note failed">Lần tải này chưa thành công. Hãy kiểm tra log bên dưới rồi thử lại.</div>'
@@ -1124,14 +1060,9 @@ def render_page(error_message: str = "") -> str:
               <span class="status-badge ${{escapeHtml(latest.status)}}">${{escapeHtml(latest.status)}}</span>
             </div>
             <div class="status-body">
-              ${{displayFileName ? `
-                <div class="result-card">
-                  <div class="result-label">Video đã sẵn sàng</div>
-                  <div class="result-name">${{escapeHtml(displayFileName)}}</div>
-                </div>
-              ` : ""}}
               ${{saveCallout}}
               ${{statusNote}}
+              ${{latest.status === "done" && output ? `<div class="mini-hint">${{escapeHtml(output.split("/").pop() || "")}}</div>` : ""}}
               <details class="technical-toggle">
                 <summary>Xem chi tiết kỹ thuật</summary>
                 <div class="technical-panel">
@@ -1170,31 +1101,7 @@ def render_page(error_message: str = "") -> str:
       `;
     }}
 
-    function renderRecentFiles(items) {{
-      const root = document.getElementById("recent-files");
-      if (!items.length) {{
-        librarySection.style.display = "none";
-        root.innerHTML = "";
-        return;
-      }}
-      librarySection.style.display = "";
-      root.innerHTML = `
-        <div class="library-list">
-          ${{items.map((file) => `
-            <article class="library-item">
-              <div>
-                <div class="library-name">${{escapeHtml(file.name)}}</div>
-                <div class="library-meta">${{escapeHtml(file.size)}}</div>
-              </div>
-              <a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a>
-            </article>
-          `).join("")}}
-        </div>
-      `;
-    }}
-
     renderJobs(seededJobs);
-    renderRecentFiles(seededFiles);
 
     async function refreshJobs() {{
       try {{
@@ -1205,17 +1112,7 @@ def render_page(error_message: str = "") -> str:
       }}
     }}
 
-    async function refreshFiles() {{
-      try {{
-        const response = await fetch("/api/files", {{ cache: "no-store" }});
-        if (!response.ok) return;
-        renderRecentFiles(await response.json());
-      }} catch (_error) {{
-      }}
-    }}
-
     setInterval(refreshJobs, 2500);
-    setInterval(refreshFiles, 4000);
   </script>
 </body>
 </html>"""
@@ -1291,11 +1188,7 @@ def render_media_save_page(job: Job, media_url: str) -> str:
         else f'<video controls playsinline preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></video>'
     )
     save_label = "Lưu vào Ảnh" if not is_audio else "Lưu vào máy"
-    save_tip = (
-        "Trên iPhone: bấm nút chia sẻ rồi chọn Lưu video. Trên Android: bấm menu hoặc giữ video để tải xuống."
-        if not is_audio
-        else "Nếu đang dùng điện thoại, bạn có thể bấm tải xuống hoặc dùng nút chia sẻ để lưu file."
-    )
+    save_tip = "Bấm Chia sẻ -> Lưu video." if not is_audio else "Bấm Chia sẻ hoặc Tải xuống để lưu file."
     return f"""<!doctype html>
 <html lang="vi">
 <head>
@@ -1405,7 +1298,7 @@ def render_media_save_page(job: Job, media_url: str) -> str:
   <main class="shell">
     <section class="card">
       <h1>Mở video để lưu</h1>
-      <p>Video đã sẵn sàng. Mở trực tiếp ở đây sẽ giúp lưu vào Ảnh dễ hơn trên điện thoại.</p>
+      <p>Video đã sẵn sàng.</p>
       <div class="tip">{html.escape(save_tip)}</div>
       {media_tag}
       <div class="file-name">{file_name}</div>
