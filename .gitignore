@@ -1,0 +1,6 @@
+__pycache__/
+.pycache/
+*.pyc
+.DS_Store
+downloads/
+!downloads/.gitkeep
