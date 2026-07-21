@@ -910,15 +910,23 @@ def render_page(error_message: str = "") -> str:
         padding-top: 2px;
       }}
       .hero-kicker {{
-        text-align: center;
+        text-align: left;
         line-height: 1.35;
+        justify-content: flex-start;
+        width: 100%;
       }}
       .intro h1 {{
-        max-width: 12ch;
-        font-size: clamp(26px, 7vw, 33px);
-        line-height: 1;
+        max-width: 100%;
+        width: 100%;
+        font-size: clamp(24px, 6.4vw, 30px);
+        line-height: 1.08;
         letter-spacing: -0.045em;
-        text-wrap: balance;
+        text-wrap: pretty;
+        text-align: left;
+      }}
+      .intro {{
+        justify-items: stretch;
+        text-align: left;
       }}
       .label-block strong {{
         font-size: 12px;
