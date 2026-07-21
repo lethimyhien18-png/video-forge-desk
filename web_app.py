@@ -1035,11 +1035,11 @@ def render_page(error_message: str = "") -> str:
         const output = latest.downloadable_path || latest.output_path || "Sẽ hiện khi xử lý xong";
         const displayTitle = latest.display_title || latest.title || "Trạng thái tải";
         const primaryActionUrl = latest.previewable_url || latest.downloadable_url || "";
-        const primaryActionLabel = latest.previewable_url ? "Mở để lưu vào Ảnh" : "Lưu vào máy";
+        const primaryActionLabel = latest.previewable_url ? "Mở video" : "Lưu vào máy";
         const saveCallout = primaryActionUrl
           ? `
             <div class="save-callout">
-              <strong>${{latest.previewable_url ? "Xong rồi, mở video để lưu" : "Xong rồi, bấm để tải về"}}</strong>
+              <strong>${{latest.previewable_url ? "Xong rồi, mở video" : "Xong rồi, bấm để tải về"}}</strong>
               <p>${{latest.previewable_url ? "Bấm Chia sẻ -> Lưu video." : "Bấm nút bên dưới để lưu file về máy."}}</p>
               <a class="download-link primary" href="${{escapeHtml(primaryActionUrl)}}"${{latest.previewable_url ? "" : " download"}}>${{primaryActionLabel}}</a>
             </div>
@@ -1187,7 +1187,8 @@ def render_media_save_page(job: Job, media_url: str) -> str:
         if is_audio
         else f'<video controls playsinline preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></video>'
     )
-    save_label = "Lưu vào Ảnh" if not is_audio else "Lưu vào máy"
+    open_label = "Mở video toàn màn hình" if not is_audio else "Mở file"
+    fallback_label = "Tải file về máy"
     save_tip = "Bấm Chia sẻ -> Lưu video." if not is_audio else "Bấm Chia sẻ hoặc Tải xuống để lưu file."
     return f"""<!doctype html>
 <html lang="vi">
@@ -1303,7 +1304,8 @@ def render_media_save_page(job: Job, media_url: str) -> str:
       {media_tag}
       <div class="file-name">{file_name}</div>
       <div class="actions">
-        <a class="button primary" href="{html.escape(media_url, quote=True)}" download>{save_label}</a>
+        <a class="button primary" href="{html.escape(media_url, quote=True)}">{open_label}</a>
+        <a class="button secondary" href="/download/{html.escape(job.id, quote=True)}" download>{fallback_label}</a>
         <a class="button secondary" href="/">Quay lại trang chính</a>
       </div>
     </section>
