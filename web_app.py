@@ -335,19 +335,20 @@ def render_page(error_message: str = "") -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Video Forge Desk</title>
+  <title>hungphatluxury</title>
   <style>
     :root {{
-      --bg: #efe8db;
-      --bg-2: #ead8c0;
-      --ink: #171411;
-      --muted: rgba(23, 20, 17, 0.60);
-      --line: rgba(23, 20, 17, 0.11);
-      --accent: #d06d2d;
-      --accent-soft: rgba(208, 109, 45, 0.12);
-      --card: rgba(255, 250, 244, 0.74);
-      --radius: 36px;
-      --shadow: 0 22px 56px rgba(85, 57, 28, 0.12);
+      --bg: #f6f0e8;
+      --bg-2: #efe3d1;
+      --ink: #1f1812;
+      --muted: rgba(31, 24, 18, 0.62);
+      --line: rgba(31, 24, 18, 0.10);
+      --accent: #b77933;
+      --accent-2: #dfb16f;
+      --accent-soft: rgba(183, 121, 51, 0.12);
+      --card: rgba(255, 252, 247, 0.82);
+      --radius: 32px;
+      --shadow: 0 26px 60px rgba(95, 61, 26, 0.12);
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -356,14 +357,53 @@ def render_page(error_message: str = "") -> str:
       color: var(--ink);
       font-family: "Avenir Next", "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at 0% 0%, rgba(208, 109, 45, 0.16), transparent 24%),
-        radial-gradient(circle at 100% 0%, rgba(210, 173, 124, 0.16), transparent 24%),
+        radial-gradient(circle at top left, rgba(183, 121, 51, 0.16), transparent 28%),
+        radial-gradient(circle at top right, rgba(223, 177, 111, 0.18), transparent 24%),
         linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
-      padding: 28px;
+      padding: 20px;
     }}
     .shell {{
-      width: min(1280px, 100%);
+      width: min(980px, 100%);
       margin: 0 auto;
+    }}
+    .brand {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+      padding: 10px 4px 0;
+    }}
+    .brand-mark {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 46px;
+      height: 46px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #fff8ef, #f0d7b1);
+      border: 1px solid rgba(183, 121, 51, 0.18);
+      box-shadow: 0 10px 24px rgba(95, 61, 26, 0.10);
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #8f5b24;
+    }}
+    .brand-copy {{
+      display: grid;
+      gap: 2px;
+      flex: 1;
+    }}
+    .brand-name {{
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }}
+    .brand-sub {{
+      font-size: 14px;
+      color: var(--muted);
     }}
     .alert {{
       margin-bottom: 18px;
@@ -490,6 +530,25 @@ def render_page(error_message: str = "") -> str:
       font-size: 16px;
       box-shadow: 0 10px 24px rgba(208, 109, 45, 0.18);
     }}
+    .save-callout {{
+      padding: 18px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255,248,239,0.98), rgba(255,241,225,0.94));
+      border: 1px solid rgba(208, 109, 45, 0.22);
+      display: grid;
+      gap: 12px;
+    }}
+    .save-callout strong {{
+      font-size: clamp(22px, 3vw, 28px);
+      line-height: 1.1;
+    }}
+    .save-callout p {{
+      margin: 0;
+      color: #855022;
+      font-size: 15px;
+      line-height: 1.5;
+      font-weight: 700;
+    }}
     .status-note {{
       padding: 12px 14px;
       border-radius: 16px;
@@ -547,53 +606,104 @@ def render_page(error_message: str = "") -> str:
       font-size: 14px;
       word-break: break-word;
     }}
+    .history-toggle {{
+      margin-top: 6px;
+      border-top: 1px solid rgba(31, 24, 18, 0.08);
+      padding-top: 12px;
+    }}
+    .history-toggle summary {{
+      cursor: pointer;
+      list-style: none;
+      font-weight: 800;
+      color: #7f5527;
+    }}
+    .history-toggle summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .history-list {{
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }}
+    .history-mini {{
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(31, 24, 18, 0.08);
+      background: rgba(255,255,255,0.66);
+      display: grid;
+      gap: 8px;
+    }}
+    .history-mini strong {{
+      font-size: 15px;
+    }}
+    .history-mini .status-meta {{
+      font-size: 13px;
+    }}
     .quick-card {{
-      padding: 34px 36px 36px;
+      padding: 32px;
       border-radius: var(--radius);
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.28)),
+        linear-gradient(180deg, rgba(255,255,255,0.70), rgba(255,255,255,0.34)),
         var(--card);
-      border: 1px solid rgba(208, 109, 45, 0.18);
+      border: 1px solid rgba(183, 121, 51, 0.15);
       box-shadow: var(--shadow);
       display: grid;
-      gap: 24px;
+      gap: 22px;
     }}
     .intro h1 {{
-      margin: 0 0 10px;
+      margin: 0 0 8px;
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: clamp(52px, 6vw, 74px);
-      line-height: 0.96;
+      font-size: clamp(40px, 6vw, 58px);
+      line-height: 0.98;
       letter-spacing: -0.04em;
     }}
     .intro p {{
       margin: 0;
-      max-width: 900px;
-      font-size: clamp(18px, 2vw, 22px);
+      max-width: 640px;
+      font-size: clamp(16px, 2vw, 19px);
       line-height: 1.5;
       color: var(--muted);
     }}
+    .hero-points {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }}
+    .hero-points span {{
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(183, 121, 51, 0.14);
+      color: #7f5527;
+      font-size: 14px;
+      font-weight: 700;
+    }}
     form {{
       display: grid;
-      gap: 22px;
+      gap: 18px;
     }}
     .label-block {{
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }}
     .label-block strong {{
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: -0.02em;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
+      color: #8f5b24;
     }}
     .field {{
       width: 100%;
-      height: 92px;
-      border-radius: 30px;
+      height: 78px;
+      border-radius: 24px;
       border: 2px solid rgba(23, 20, 17, 0.10);
-      background: rgba(255,255,255,0.84);
-      padding: 0 28px;
-      font-size: clamp(24px, 2.5vw, 30px);
+      background: rgba(255,255,255,0.92);
+      padding: 0 22px;
+      font-size: clamp(18px, 2.2vw, 22px);
       font-weight: 700;
       color: var(--ink);
       outline: none;
@@ -606,13 +716,14 @@ def render_page(error_message: str = "") -> str:
       box-shadow: 0 0 0 6px rgba(208, 109, 45, 0.10);
     }}
     .section-title {{
-      font-size: clamp(24px, 2.6vw, 30px);
+      font-size: clamp(17px, 2vw, 19px);
       color: var(--muted);
       margin: 0;
+      font-weight: 700;
     }}
     .choice-row {{
       display: grid;
-      gap: 20px;
+      gap: 14px;
     }}
     .choice {{
       position: relative;
@@ -624,28 +735,26 @@ def render_page(error_message: str = "") -> str:
     }}
     .choice span {{
       display: block;
-      padding: 28px 28px 30px;
-      border-radius: 34px;
+      padding: 20px 20px 22px;
+      border-radius: 24px;
       border: 2px solid rgba(23, 20, 17, 0.10);
-      background: rgba(255,255,255,0.72);
+      background: rgba(255,255,255,0.76);
       cursor: pointer;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }}
     .choice strong {{
       display: block;
-      font-size: clamp(30px, 3vw, 42px);
+      font-size: clamp(22px, 3vw, 28px);
       font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: -0.03em;
-      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
     }}
     .choice small {{
       display: block;
-      font-size: clamp(18px, 2vw, 22px);
-      line-height: 1.45;
+      font-size: clamp(14px, 1.8vw, 16px);
+      line-height: 1.5;
       color: rgba(23, 20, 17, 0.58);
-      text-transform: uppercase;
-      font-weight: 800;
+      font-weight: 700;
     }}
     .choice input:checked + span {{
       border-color: rgba(208, 109, 45, 0.35);
@@ -654,15 +763,15 @@ def render_page(error_message: str = "") -> str:
     }}
     .checks {{
       display: flex;
-      gap: 30px;
+      gap: 18px;
       flex-wrap: wrap;
       align-items: center;
     }}
     .checks label {{
       display: inline-flex;
       align-items: center;
-      gap: 14px;
-      font-size: clamp(20px, 2vw, 24px);
+      gap: 10px;
+      font-size: clamp(15px, 1.8vw, 17px);
       font-weight: 700;
       color: var(--ink);
     }}
@@ -673,34 +782,50 @@ def render_page(error_message: str = "") -> str:
     }}
     .actions {{
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 18px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
       flex-wrap: wrap;
       padding-top: 4px;
     }}
     .cta {{
       border: none;
       border-radius: 999px;
-      padding: 24px 40px;
-      background: linear-gradient(135deg, #cf6a2f, #d97b22);
+      width: 100%;
+      padding: 20px 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
       color: #fffaf2;
-      font-size: clamp(28px, 3vw, 40px);
+      font-size: clamp(22px, 3vw, 28px);
       font-weight: 900;
       cursor: pointer;
-      box-shadow: 0 18px 36px rgba(208, 109, 45, 0.20);
+      box-shadow: 0 18px 36px rgba(183, 121, 51, 0.24);
     }}
     .cta[disabled] {{
       cursor: wait;
       opacity: 0.78;
     }}
     .hint {{
-      font-size: clamp(18px, 2vw, 22px);
+      text-align: center;
+      font-size: clamp(14px, 1.8vw, 16px);
       color: var(--muted);
+    }}
+    .sections-grid {{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }}
+    .section-card {{
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.58);
+      border: 1px solid rgba(31, 24, 18, 0.08);
     }}
     @media (max-width: 820px) {{
       body {{
         padding: 16px;
+      }}
+      .brand {{
+        align-items: flex-start;
       }}
       .quick-card {{
         padding: 22px;
@@ -712,11 +837,7 @@ def render_page(error_message: str = "") -> str:
         padding: 0 20px;
       }}
       .choice span {{
-        padding: 22px;
-        border-radius: 26px;
-      }}
-      .actions {{
-        align-items: flex-start;
+        padding: 18px;
       }}
     }}
   </style>
@@ -725,11 +846,23 @@ def render_page(error_message: str = "") -> str:
   <main class="shell">
     {error_html}
     {dependency_html}
+    <div class="brand">
+      <div class="brand-mark">H</div>
+      <div class="brand-copy">
+        <div class="brand-name">hungphatluxury</div>
+        <div class="brand-sub">Tải video nhanh, đẹp, gọn và dễ dùng.</div>
+      </div>
+    </div>
     <div id="job-banner" class="job-banner" aria-live="polite"></div>
     <section class="quick-card">
       <div class="intro">
-        <h1>Tải nhanh</h1>
-        <p>Đây là phần bạn nên dùng trong hầu hết trường hợp. Mặc định hệ thống sẽ ưu tiên chất lượng cao nhất.</p>
+        <h1>Tải video chỉ với 1 link</h1>
+        <p>Dán link, bấm tải, chờ vài giây rồi bấm lưu về máy. Mặc định luôn ưu tiên bản đẹp nhất và dễ dùng trên điện thoại.</p>
+        <div class="hero-points">
+          <span>Ưu tiên chất lượng cao</span>
+          <span>Dùng tốt trên điện thoại</span>
+          <span>Không cần biết kỹ thuật</span>
+        </div>
       </div>
 
       <form method="post" action="/jobs/download">
@@ -780,15 +913,17 @@ def render_page(error_message: str = "") -> str:
         </div>
       </form>
 
-      <section class="status-panel">
-        <h2>Trạng thái tải</h2>
-        <div id="job-list"></div>
-      </section>
+      <div class="sections-grid">
+        <section class="status-panel section-card">
+          <h2>Trạng thái tải</h2>
+          <div id="job-list"></div>
+        </section>
 
-      <section class="library">
-        <h2>File đã tải</h2>
-        <div id="recent-files"></div>
-      </section>
+        <section class="library section-card">
+          <h2>File đã tải</h2>
+          <div id="recent-files"></div>
+        </section>
+      </div>
     </section>
   </main>
 
@@ -845,7 +980,7 @@ def render_page(error_message: str = "") -> str:
       submitButton.disabled = true;
       submitButton.textContent = "Đang xử lý...";
       showBanner("running", "Đã nhận link. Hệ thống đang xử lý, trang sẽ tự cập nhật khi có kết quả.");
-      statusSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      statusSection.scrollIntoView({{ behavior: "smooth", block: "start" }});
     }});
 
     function escapeHtml(value) {{
@@ -857,7 +992,7 @@ def render_page(error_message: str = "") -> str:
     }}
 
     function showBanner(kind, message) {{
-      jobBanner.className = `job-banner show ${kind}`;
+      jobBanner.className = `job-banner show ${{kind}}`;
       jobBanner.textContent = message;
     }}
 
@@ -882,7 +1017,7 @@ def render_page(error_message: str = "") -> str:
         submitButton.textContent = defaultButtonLabel;
         if (lastHighlightedJobId !== latest.id) {{
           lastHighlightedJobId = latest.id;
-          statusSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          statusSection.scrollIntoView({{ behavior: "smooth", block: "start" }});
         }}
         return;
       }}
@@ -899,37 +1034,70 @@ def render_page(error_message: str = "") -> str:
         return;
       }}
       updateBannerFromJobs(items);
-      root.innerHTML = items.map((job) => {{
-        const logs = (job.log_lines || []).join("\\n");
-        const output = job.downloadable_path || job.output_path || "se hien khi co";
-        const statusNote = job.downloadable_url
-          ? '<div class="status-note done">Xong rồi, bấm nút bên dưới để lưu video vào máy.</div>'
-          : job.status === "running"
-            ? '<div class="status-note running">Hệ thống đang xử lý. Chờ một chút, khi xong sẽ hiện nút lưu vào máy.</div>'
-            : job.status === "failed"
-              ? '<div class="status-note failed">Lần tải này chưa thành công. Bạn có thể kiểm tra log bên dưới rồi thử lại.</div>'
-              : "";
-        const linkHtml = job.downloadable_url
-          ? `<a class="download-link primary" href="${escapeHtml(job.downloadable_url)}" download>Lưu vào máy</a>`
+      const latest = items[0];
+      const history = items.slice(1, 4);
+      const latestHtml = latest ? (() => {{
+        const logs = (latest.log_lines || []).join("\\n");
+        const output = latest.downloadable_path || latest.output_path || "Sẽ hiện khi xử lý xong";
+        const saveCallout = latest.downloadable_url
+          ? `
+            <div class="save-callout">
+              <strong>Xong rồi, bấm đây để lưu vào máy</strong>
+              <p>Nếu đang dùng điện thoại, sau khi bấm nút bên dưới máy sẽ hiện phần tải xuống hoặc mở màn hình lưu file.</p>
+              <a class="download-link primary" href="${{escapeHtml(latest.downloadable_url)}}" download>Lưu vào máy</a>
+            </div>
+          `
           : "";
+        const statusNote = latest.downloadable_url
+          ? '<div class="status-note done">Video đã sẵn sàng. Bạn chỉ cần bấm nút Lưu vào máy.</div>'
+          : latest.status === "running"
+            ? '<div class="status-note running">Đang xử lý video. Chờ thêm một chút, nút lưu sẽ hiện ngay tại đây.</div>'
+            : latest.status === "failed"
+              ? '<div class="status-note failed">Lần tải này chưa thành công. Hãy kiểm tra log bên dưới rồi thử lại.</div>'
+              : "";
         return `
           <article class="status-item">
             <div class="status-head">
               <div>
-                <div class="status-title">${escapeHtml(job.title)}</div>
-                <div class="status-meta">${escapeHtml(job.created_label || "")} · exit ${escapeHtml(job.return_code ?? "-")}</div>
+                <div class="status-title">${{escapeHtml(latest.title)}}</div>
+                <div class="status-meta">${{escapeHtml(latest.created_label || "")}} · exit ${{escapeHtml(latest.return_code ?? "-")}}</div>
               </div>
-              <span class="status-badge ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
+              <span class="status-badge ${{escapeHtml(latest.status)}}">${{escapeHtml(latest.status)}}</span>
             </div>
             <div class="status-body">
-              <div class="status-path"><strong>File sẽ nằm ở:</strong> ${escapeHtml(output)}</div>
-              ${statusNote}
-              ${linkHtml}
-              <pre class="status-log">${escapeHtml(logs || "Đang chờ log...")}</pre>
+              <div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>
+              ${{saveCallout}}
+              ${{statusNote}}
+              <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
             </div>
           </article>
         `;
-      }}).join("");
+      }})() : "";
+      const historyHtml = history.length
+        ? `
+          <details class="history-toggle">
+            <summary>Xem các lần tải trước</summary>
+            <div class="history-list">
+              ${{history.map((job) => {{
+                const linkHtml = job.downloadable_url
+                  ? `<a class="download-link" href="${{escapeHtml(job.downloadable_url)}}" download>Tải lại file</a>`
+                  : "";
+                return `
+                  <article class="history-mini">
+                    <strong>${{escapeHtml(job.title)}}</strong>
+                    <div class="status-meta">${{escapeHtml(job.created_label || "")}} · ${{escapeHtml(job.status)}}</div>
+                    ${{linkHtml}}
+                  </article>
+                `;
+              }}).join("")}}
+            </div>
+          </details>
+        `
+        : "";
+      root.innerHTML = `
+        ${{latestHtml}}
+        ${{historyHtml}}
+      `;
     }}
 
     function renderRecentFiles(items) {{
@@ -940,15 +1108,15 @@ def render_page(error_message: str = "") -> str:
       }}
       root.innerHTML = `
         <div class="library-list">
-          ${items.map((file) => `
+          ${{items.map((file) => `
             <article class="library-item">
               <div>
-                <div class="library-name">${escapeHtml(file.name)}</div>
-                <div class="library-meta">${escapeHtml(file.size)} · ${escapeHtml(file.path)}</div>
+                <div class="library-name">${{escapeHtml(file.name)}}</div>
+                <div class="library-meta">${{escapeHtml(file.size)}} · ${{escapeHtml(file.path)}}</div>
               </div>
-              <a class="download-link" href="${escapeHtml(file.url)}" download>Tải file này</a>
+              <a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a>
             </article>
-          `).join("")}
+          `).join("")}}
         </div>
       `;
     }}
@@ -958,7 +1126,7 @@ def render_page(error_message: str = "") -> str:
 
     async function refreshJobs() {{
       try {{
-        const response = await fetch("/api/jobs", { cache: "no-store" });
+        const response = await fetch("/api/jobs", {{ cache: "no-store" }});
         if (!response.ok) return;
         renderJobs(await response.json());
       }} catch (_error) {{
@@ -967,7 +1135,7 @@ def render_page(error_message: str = "") -> str:
 
     async function refreshFiles() {{
       try {{
-        const response = await fetch("/api/files", { cache: "no-store" });
+        const response = await fetch("/api/files", {{ cache: "no-store" }});
         if (!response.ok) return;
         renderRecentFiles(await response.json());
       }} catch (_error) {{
@@ -1014,7 +1182,7 @@ class AppHandler(BaseHTTPRequestHandler):
         raw_form = urllib.parse.parse_qs(body, keep_blank_values=True)
         form = {key: values[-1] for key, values in raw_form.items()}
 
-        try {{
+        try:
             if parsed.path == "/jobs/download":
                 create_download_job(form)
             elif parsed.path == "/jobs/batch":
@@ -1057,6 +1225,8 @@ class AppHandler(BaseHTTPRequestHandler):
         data = path.read_bytes()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type or "application/octet-stream")
+        quoted_name = urllib.parse.quote(path.name)
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quoted_name}")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
