@@ -47,6 +47,7 @@ class Job:
     cleanup_file: str = ""
     downloadable_path: str = ""
     downloadable_url: str = ""
+    previewable_url: str = ""
 
     def append_log(self, text: str) -> None:
         if not text:
@@ -123,6 +124,13 @@ def detect_downloadable_file(path_hint: str) -> Optional[Path]:
     if not candidates:
         return None
     return max(candidates, key=lambda item: item.stat().st_mtime)
+
+
+def is_inline_media(path: Path) -> bool:
+    content_type, _encoding = mimetypes.guess_type(path.name)
+    if not content_type:
+        return False
+    return content_type.startswith("video/") or content_type.startswith("audio/")
 
 
 def list_recent_downloads(limit: int = 10) -> List[Dict[str, str]]:
@@ -234,6 +242,8 @@ def run_job(job_id: str) -> None:
         if downloadable:
             latest.downloadable_path = str(downloadable)
             latest.downloadable_url = f"/download/{job_id}"
+            if is_inline_media(downloadable):
+                latest.previewable_url = f"/open/{job_id}"
 
 
 def build_common_download_args(form: Dict[str, str]) -> List[str]:
@@ -1086,17 +1096,19 @@ def render_page(error_message: str = "") -> str:
         const output = latest.downloadable_path || latest.output_path || "Sẽ hiện khi xử lý xong";
         const displayTitle = latest.display_title || latest.title || "Video đã tải";
         const displayFileName = latest.display_file_name || "";
-        const saveCallout = latest.downloadable_url
+        const primaryActionUrl = latest.previewable_url || latest.downloadable_url || "";
+        const primaryActionLabel = latest.previewable_url ? "Mở để lưu vào Ảnh" : "Lưu vào máy";
+        const saveCallout = primaryActionUrl
           ? `
             <div class="save-callout">
-              <strong>Xong rồi, bấm đây để lưu vào máy</strong>
-              <p>Sau khi bấm nút bên dưới, máy sẽ mở phần lưu file hoặc tải xuống.</p>
-              <a class="download-link primary" href="${{escapeHtml(latest.downloadable_url)}}" download>Lưu vào máy</a>
+              <strong>${{latest.previewable_url ? "Xong rồi, mở video để lưu vào Ảnh" : "Xong rồi, bấm đây để lưu vào máy"}}</strong>
+              <p>${{latest.previewable_url ? "Nếu đang dùng điện thoại, bấm nút bên dưới rồi chọn Lưu video hoặc Lưu vào Ảnh." : "Sau khi bấm nút bên dưới, máy sẽ mở phần lưu file hoặc tải xuống."}}</p>
+              <a class="download-link primary" href="${{escapeHtml(primaryActionUrl)}}"${{latest.previewable_url ? "" : " download"}}>${{primaryActionLabel}}</a>
             </div>
           `
           : "";
-        const statusNote = latest.downloadable_url
-          ? '<div class="status-note done">Video đã sẵn sàng. Bạn chỉ cần bấm nút Lưu vào máy.</div>'
+        const statusNote = primaryActionUrl
+          ? `<div class="status-note done">${{latest.previewable_url ? "Video đã sẵn sàng. Bấm nút mở video để lưu vào Ảnh dễ hơn trên điện thoại." : "Video đã sẵn sàng. Bạn chỉ cần bấm nút Lưu vào máy."}}</div>`
           : latest.status === "running"
             ? '<div class="status-note running">Đang xử lý video. Chờ thêm một chút, nút lưu sẽ hiện ngay tại đây.</div>'
             : latest.status === "failed"
@@ -1138,7 +1150,7 @@ def render_page(error_message: str = "") -> str:
             <div class="history-list">
               ${{history.map((job) => {{
                 const linkHtml = job.downloadable_url
-                  ? `<a class="download-link" href="${{escapeHtml(job.downloadable_url)}}" download>Tải lại file</a>`
+                  ? `<a class="download-link" href="${{escapeHtml(job.previewable_url || job.downloadable_url)}}"${{job.previewable_url ? "" : " download"}}>${{job.previewable_url ? "Mở lại video" : "Tải lại file"}}</a>`
                   : "";
                 return `
                   <article class="history-mini">
@@ -1269,6 +1281,144 @@ def render_download_missing_page() -> str:
 </html>"""
 
 
+def render_media_save_page(job: Job, media_url: str) -> str:
+    file_name = html.escape(Path(job.downloadable_path or job.output_path).name or "video")
+    content_type, _encoding = mimetypes.guess_type(job.downloadable_path or "")
+    is_audio = bool(content_type and content_type.startswith("audio/"))
+    media_tag = (
+        f'<audio controls preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></audio>'
+        if is_audio
+        else f'<video controls playsinline preload="metadata" class="media-player" src="{html.escape(media_url, quote=True)}"></video>'
+    )
+    save_label = "Lưu vào Ảnh" if not is_audio else "Lưu vào máy"
+    save_tip = (
+        "Trên iPhone: bấm nút chia sẻ rồi chọn Lưu video. Trên Android: bấm menu hoặc giữ video để tải xuống."
+        if not is_audio
+        else "Nếu đang dùng điện thoại, bạn có thể bấm tải xuống hoặc dùng nút chia sẻ để lưu file."
+    )
+    return f"""<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lưu video</title>
+  <style>
+    :root {{
+      --bg: #f7f1e8;
+      --bg-2: #efe2cf;
+      --ink: #241a12;
+      --muted: rgba(36, 26, 18, 0.68);
+      --accent: #c87432;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      padding: 18px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top center, rgba(223, 177, 111, 0.18), transparent 30%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    }}
+    .shell {{
+      width: min(760px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }}
+    .card {{
+      padding: 22px;
+      border-radius: 28px;
+      background: rgba(255, 252, 248, 0.92);
+      border: 1px solid rgba(36, 26, 18, 0.10);
+      box-shadow: 0 24px 50px rgba(100, 65, 30, 0.12);
+      display: grid;
+      gap: 16px;
+    }}
+    h1 {{
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-size: clamp(38px, 7vw, 56px);
+      line-height: 0.95;
+      text-align: center;
+    }}
+    p {{
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.6;
+      text-align: center;
+    }}
+    .tip {{
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: #fff4e8;
+      color: #8f4b1c;
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1.55;
+    }}
+    .media-player {{
+      width: 100%;
+      max-height: min(70vh, 560px);
+      border-radius: 24px;
+      background: #120e0b;
+      box-shadow: 0 20px 40px rgba(28, 20, 13, 0.18);
+    }}
+    .actions {{
+      display: grid;
+      gap: 12px;
+    }}
+    .button {{
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      min-height: 64px;
+      padding: 16px 20px;
+      border-radius: 20px;
+      text-decoration: none;
+      font-size: 20px;
+      font-weight: 900;
+    }}
+    .button.primary {{
+      color: #fffaf2;
+      background: linear-gradient(135deg, #b8742c, #e0b168);
+      box-shadow: 0 18px 36px rgba(183, 121, 51, 0.22);
+    }}
+    .button.secondary {{
+      color: #8f4b1c;
+      background: rgba(255,255,255,0.86);
+      border: 1px solid rgba(183, 121, 51, 0.18);
+    }}
+    .file-name {{
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--muted);
+      word-break: break-word;
+      text-align: center;
+    }}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <h1>Mở video để lưu</h1>
+      <p>Video đã sẵn sàng. Mở trực tiếp ở đây sẽ giúp lưu vào Ảnh dễ hơn trên điện thoại.</p>
+      <div class="tip">{html.escape(save_tip)}</div>
+      {media_tag}
+      <div class="file-name">{file_name}</div>
+      <div class="actions">
+        <a class="button primary" href="{html.escape(media_url, quote=True)}" download>{save_label}</a>
+        <a class="button secondary" href="/">Quay lại trang chính</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>"""
+
+
 class AppHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
@@ -1302,6 +1452,45 @@ class AppHandler(BaseHTTPRequestHandler):
                 self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
                 return
             self.serve_file(target)
+            return
+        if parsed.path.startswith("/open/"):
+            job_id = parsed.path.removeprefix("/open/").strip("/")
+            if not job_id:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            with jobs_lock:
+                job = jobs.get(job_id)
+                target_path = job.downloadable_path if job else ""
+            if not job or not target_path:
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
+                return
+            target = Path(target_path)
+            if not target.exists() or not target.is_file():
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
+                return
+            if not is_inline_media(target):
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", f"/download/{job_id}")
+                self.end_headers()
+                return
+            self.respond_html(render_media_save_page(job, f"/media/{job_id}"))
+            return
+        if parsed.path.startswith("/media/"):
+            job_id = parsed.path.removeprefix("/media/").strip("/")
+            if not job_id:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            with jobs_lock:
+                job = jobs.get(job_id)
+                target_path = job.downloadable_path if job else ""
+            if not target_path:
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
+                return
+            target = Path(target_path)
+            if not target.exists() or not target.is_file():
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
+                return
+            self.serve_file(target, download=False)
             return
         if parsed.path.startswith("/downloads/"):
             relative_path = urllib.parse.unquote(parsed.path.removeprefix("/downloads/"))
@@ -1358,13 +1547,14 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def serve_file(self, path: Path) -> None:
+    def serve_file(self, path: Path, download: bool = True) -> None:
         content_type, _encoding = mimetypes.guess_type(path.name)
         data = path.read_bytes()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type or "application/octet-stream")
         quoted_name = urllib.parse.quote(path.name)
-        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quoted_name}")
+        disposition = "attachment" if download else "inline"
+        self.send_header("Content-Disposition", f"{disposition}; filename*=UTF-8''{quoted_name}")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
