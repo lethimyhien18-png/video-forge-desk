@@ -1,0 +1,547 @@
+#!/usr/bin/env python3
+"""
+Local web UI for the video download + edit agent.
+"""
+
+from __future__ import annotations
+
+import html
+import json
+import mimetypes
+import os
+import shutil
+import socket
+import subprocess
+import tempfile
+import threading
+import time
+import urllib.parse
+import uuid
+from dataclasses import asdict, dataclass, field
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Dict, List, Optional
+
+
+ROOT_DIR = Path(__file__).resolve().parent
+DOWNLOADS_DIR = ROOT_DIR / "downloads"
+SCRIPT_PATH = ROOT_DIR / "video_agent.py"
+HOST = "0.0.0.0"
+PORT = 8765
+FALLBACK_BIN_DIRS = ("/opt/homebrew/bin", "/usr/local/bin")
+
+
+@dataclass
+class Job:
+    id: str
+    title: str
+    command: List[str]
+    status: str = "queued"
+    return_code: Optional[int] = None
+    created_at: float = field(default_factory=time.time)
+    started_at: Optional[float] = None
+    finished_at: Optional[float] = None
+    log_lines: List[str] = field(default_factory=list)
+    output_path: str = ""
+    cleanup_file: str = ""
+    downloadable_path: str = ""
+    downloadable_url: str = ""
+
+    def append_log(self, text: str) -> None:
+        if not text:
+            return
+        self.log_lines.extend(text.splitlines())
+        self.log_lines = self.log_lines[-300:]
+
+    def to_dict(self) -> Dict[str, object]:
+        payload = asdict(self)
+        payload["created_label"] = time.strftime("%H:%M:%S", time.localtime(self.created_at))
+        return payload
+
+
+jobs: Dict[str, Job] = {}
+jobs_lock = threading.Lock()
+
+
+def dependency_report() -> Dict[str, bool]:
+    search_path = os.environ.get("PATH", "")
+    for bin_dir in FALLBACK_BIN_DIRS:
+        if bin_dir not in search_path.split(os.pathsep):
+            search_path = f"{bin_dir}{os.pathsep}{search_path}" if search_path else bin_dir
+    return {
+        "yt_dlp": bool(shutil.which("yt-dlp", path=search_path)),
+        "ffmpeg": bool(shutil.which("ffmpeg", path=search_path)),
+        "brew": bool(shutil.which("brew", path=search_path)),
+    }
+
+
+def build_runtime_env() -> Dict[str, str]:
+    env = os.environ.copy()
+    current_path = env.get("PATH", "")
+    for bin_dir in reversed(FALLBACK_BIN_DIRS):
+        if bin_dir not in current_path.split(os.pathsep):
+            current_path = f"{bin_dir}{os.pathsep}{current_path}" if current_path else bin_dir
+    env["PATH"] = current_path
+    return env
+
+
+def detect_downloadable_file(path_hint: str) -> Optional[Path]:
+    if not path_hint:
+        return None
+    path = Path(path_hint)
+    if path.is_file():
+        return path
+    if not path.exists() or not path.is_dir():
+        return None
+    candidates = [
+        item for item in path.rglob("*")
+        if item.is_file() and item.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item.stat().st_mtime)
+
+
+def list_recent_downloads(limit: int = 10) -> List[Dict[str, str]]:
+    if not DOWNLOADS_DIR.exists():
+        return []
+    files = [
+        item for item in DOWNLOADS_DIR.rglob("*")
+        if item.is_file() and item.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
+    ]
+    files.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+    results: List[Dict[str, str]] = []
+    for item in files[:limit]:
+        try:
+            relative = item.resolve().relative_to(ROOT_DIR.resolve())
+            url = "/" + str(relative).replace(os.sep, "/")
+        except ValueError:
+            continue
+        results.append(
+            {
+                "name": item.name,
+                "path": str(item),
+                "url": url,
+                "size": f"{item.stat().st_size / 1024:.1f} KB",
+            }
+        )
+    return results
+
+
+def bool_from_form(value: Optional[str]) -> bool:
+    return value in {"1", "true", "on", "yes"}
+
+
+def pick_port(env_value: Optional[str]) -> int:
+    if not env_value:
+        return PORT
+    try:
+        return int(env_value)
+    except ValueError:
+        return PORT
+
+
+def get_listen_port() -> int:
+    return pick_port(os.environ.get("PORT") or os.environ.get("VIDEO_AGENT_WEB_PORT"))
+
+
+def detect_lan_ip() -> str:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        sock.close()
+
+
+def make_job(title: str, command: List[str], output_path: str = "", cleanup_file: str = "") -> Job:
+    job = Job(
+        id=uuid.uuid4().hex[:10],
+        title=title,
+        command=command,
+        output_path=output_path,
+        cleanup_file=cleanup_file,
+    )
+    with jobs_lock:
+        jobs[job.id] = job
+    thread = threading.Thread(target=run_job, args=(job.id,), daemon=True)
+    thread.start()
+    return job
+
+
+def run_job(job_id: str) -> None:
+    with jobs_lock:
+        job = jobs[job_id]
+        job.status = "running"
+        job.started_at = time.time()
+
+    process = subprocess.Popen(
+        job.command,
+        cwd=str(ROOT_DIR),
+        env=build_runtime_env(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    try:
+        assert process.stdout is not None
+        for line in process.stdout:
+            with jobs_lock:
+                jobs[job_id].append_log(line.rstrip())
+        return_code = process.wait()
+    finally:
+        if job.cleanup_file:
+            try:
+                Path(job.cleanup_file).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    with jobs_lock:
+        latest = jobs[job_id]
+        latest.return_code = return_code
+        latest.finished_at = time.time()
+        latest.status = "done" if return_code == 0 else "failed"
+        downloadable = detect_downloadable_file(latest.output_path)
+        if downloadable:
+            latest.downloadable_path = str(downloadable)
+            try:
+                relative = downloadable.resolve().relative_to(ROOT_DIR.resolve())
+                latest.downloadable_url = "/" + str(relative).replace(os.sep, "/")
+            except ValueError:
+                latest.downloadable_url = ""
+
+
+def build_common_download_args(form: Dict[str, str]) -> List[str]:
+    args = [
+        "--output-dir",
+        form.get("output_dir", "downloads") or "downloads",
+        "--filename",
+        form.get("filename") or "%(uploader|unknown)s/%(upload_date>%Y-%m-%d)s_%(title).180B_[%(id)s].%(ext)s",
+        "--quality",
+        form.get("quality", "best") or "best",
+        "--remux-video",
+        form.get("remux_video", "mp4") or "mp4",
+    ]
+    cookies = form.get("cookies", "").strip()
+    if cookies:
+        args.extend(["--cookies", cookies])
+    if bool_from_form(form.get("audio_only")):
+        args.append("--audio-only")
+    if bool_from_form(form.get("subs")):
+        args.append("--subs")
+    if bool_from_form(form.get("write_thumbnail")):
+        args.append("--write-thumbnail")
+    if bool_from_form(form.get("write_info_json")):
+        args.append("--write-info-json")
+    if bool_from_form(form.get("no_archive")):
+        args.append("--no-archive")
+    return args
+
+
+def build_edit_args(form: Dict[str, str]) -> List[str]:
+    args: List[str] = []
+    for key in ("start", "end", "duration", "crop", "resize"):
+        value = form.get(key, "").strip()
+        if value:
+            args.extend([f"--{key}", value])
+    preset_name = form.get("preset_name", "none").strip() or "none"
+    args.extend(["--preset-name", preset_name])
+    if bool_from_form(form.get("mute")):
+        args.append("--mute")
+    if bool_from_form(form.get("extract_audio")):
+        args.append("--extract-audio")
+    video_codec = form.get("video_codec", "libx264").strip() or "libx264"
+    encode_preset = form.get("encode_preset", "slow").strip() or "slow"
+    crf = form.get("crf", "18").strip() or "18"
+    args.extend(["--video-codec", video_codec, "--crf", crf, "--encode-preset", encode_preset])
+    output = form.get("output", "").strip()
+    if output:
+        args.extend(["--output", output])
+    return args
+
+
+def create_download_job(form: Dict[str, str]) -> Job:
+    url = form.get("url", "").strip()
+    mode = form.get("mode", "download").strip() or "download"
+    command = ["python3", str(SCRIPT_PATH), mode, url]
+    command.extend(build_common_download_args(form))
+    if mode == "workflow":
+        command.extend(build_edit_args(form))
+    title = f"{mode}: {url[:72]}"
+    output_path = str(ROOT_DIR / (form.get("output_dir", "downloads") or "downloads"))
+    return make_job(title, command, output_path=output_path)
+
+
+def render_page(error_message: str = "") -> str:
+    with jobs_lock:
+        job_list = sorted(jobs.values(), key=lambda item: item.created_at, reverse=True)
+        job_rows = [job.to_dict() for job in job_list[:12]]
+
+    deps = dependency_report()
+    lan_ip = detect_lan_ip()
+    port = get_listen_port()
+    recent_files = list_recent_downloads()
+    jobs_json = html.escape(json.dumps(job_rows))
+    recent_files_json = html.escape(json.dumps(recent_files))
+    error_html = f'<div class="alert">{html.escape(error_message)}</div>' if error_message else ""
+    missing_tools = []
+    if not deps["yt_dlp"]:
+        missing_tools.append("yt-dlp")
+    if not deps["ffmpeg"]:
+        missing_tools.append("ffmpeg")
+    dependency_html = ""
+    if missing_tools:
+        dependency_html = (
+            '<div class="alert"><strong>Chưa thể tải video thật.</strong> '
+            f'Máy này đang thiếu: {html.escape(", ".join(missing_tools))}.</div>'
+        )
+
+    return f'''<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Forge Desk</title>
+  <style>
+    :root {{
+      --bg: #efe8db;
+      --bg-2: #ead8c0;
+      --ink: #171411;
+      --muted: rgba(23, 20, 17, 0.60);
+      --line: rgba(23, 20, 17, 0.11);
+      --accent: #d06d2d;
+      --accent-soft: rgba(208, 109, 45, 0.12);
+      --card: rgba(255, 250, 244, 0.74);
+      --radius: 36px;
+      --shadow: 0 22px 56px rgba(85, 57, 28, 0.12);
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; min-height: 100vh; color: var(--ink); font-family: "Avenir Next", "Segoe UI", sans-serif; background: radial-gradient(circle at 0% 0%, rgba(208, 109, 45, 0.16), transparent 24%), radial-gradient(circle at 100% 0%, rgba(210, 173, 124, 0.16), transparent 24%), linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%); padding: 28px; }}
+    .shell {{ width: min(1280px, 100%); margin: 0 auto; }}
+    .alert {{ margin-bottom: 18px; padding: 14px 16px; border-radius: 18px; background: rgba(178,34,34,0.08); border: 1px solid rgba(178,34,34,0.15); color: #8d1c1c; }}
+    .status-panel, .library {{ margin-top: 8px; padding-top: 8px; display: grid; gap: 14px; }}
+    .status-panel h2, .library h2 {{ margin: 0; font-family: "Iowan Old Style", "Palatino Linotype", serif; font-size: clamp(30px, 3vw, 40px); }}
+    .status-empty, .library-empty {{ color: var(--muted); font-size: clamp(18px, 2vw, 22px); }}
+    .status-item {{ border: 1px solid rgba(23, 20, 17, 0.10); border-radius: 24px; background: rgba(255,255,255,0.74); overflow: hidden; }}
+    .status-head {{ padding: 14px 16px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }}
+    .status-title {{ font-size: 18px; font-weight: 800; }}
+    .status-meta, .status-path, .library-meta {{ font-size: 14px; color: var(--muted); word-break: break-word; }}
+    .status-badge {{ padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }}
+    .queued {{ background: rgba(33,66,77,0.10); color: #21424d; }}
+    .running {{ background: rgba(255,186,73,0.22); color: #7d4a00; }}
+    .done {{ background: rgba(76,175,80,0.18); color: #1f6a2b; }}
+    .failed {{ background: rgba(178,34,34,0.12); color: #8d1c1c; }}
+    .status-body {{ padding: 0 16px 16px; display: grid; gap: 10px; }}
+    .status-log {{ margin: 0; padding: 12px; border-radius: 14px; background: rgba(22,18,13,0.92); color: #f6e8cf; max-height: 170px; overflow: auto; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }}
+    .download-link {{ display: inline-flex; width: fit-content; padding: 10px 14px; border-radius: 999px; background: rgba(208, 109, 45, 0.12); color: #9a4f1f; text-decoration: none; font-weight: 800; }}
+    .library-list {{ display: grid; gap: 10px; }}
+    .library-item {{ padding: 14px 16px; border: 1px solid rgba(23, 20, 17, 0.10); border-radius: 20px; background: rgba(255,255,255,0.72); display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }}
+    .library-name {{ font-weight: 800; font-size: 16px; }}
+    .quick-card {{ padding: 34px 36px 36px; border-radius: var(--radius); background: linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.28)), var(--card); border: 1px solid rgba(208, 109, 45, 0.18); box-shadow: var(--shadow); display: grid; gap: 24px; }}
+    .intro h1 {{ margin: 0 0 10px; font-family: "Iowan Old Style", "Palatino Linotype", serif; font-size: clamp(52px, 6vw, 74px); line-height: 0.96; letter-spacing: -0.04em; }}
+    .intro p {{ margin: 0; max-width: 900px; font-size: clamp(18px, 2vw, 22px); line-height: 1.5; color: var(--muted); }}
+    .access-note {{ margin-top: 6px; font-size: clamp(16px, 1.8vw, 20px); color: var(--muted); }}
+    .access-note a {{ color: #9a4f1f; font-weight: 800; text-decoration: none; }}
+    form {{ display: grid; gap: 22px; }}
+    .label-block {{ display: grid; gap: 12px; }}
+    .label-block strong {{ font-size: 28px; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; }}
+    .field {{ width: 100%; height: 92px; border-radius: 30px; border: 2px solid rgba(23, 20, 17, 0.10); background: rgba(255,255,255,0.84); padding: 0 28px; font-size: clamp(24px, 2.5vw, 30px); font-weight: 700; color: var(--ink); outline: none; }}
+    .field::placeholder {{ color: rgba(23, 20, 17, 0.5); }}
+    .field:focus {{ border-color: rgba(208, 109, 45, 0.55); box-shadow: 0 0 0 6px rgba(208, 109, 45, 0.10); }}
+    .section-title {{ font-size: clamp(24px, 2.6vw, 30px); color: var(--muted); margin: 0; }}
+    .choice-row {{ display: grid; gap: 20px; }}
+    .choice {{ position: relative; }}
+    .choice input {{ position: absolute; opacity: 0; pointer-events: none; }}
+    .choice span {{ display: block; padding: 28px 28px 30px; border-radius: 34px; border: 2px solid rgba(23, 20, 17, 0.10); background: rgba(255,255,255,0.72); cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }}
+    .choice strong {{ display: block; font-size: clamp(30px, 3vw, 42px); font-weight: 900; text-transform: uppercase; letter-spacing: -0.03em; margin-bottom: 12px; }}
+    .choice small {{ display: block; font-size: clamp(18px, 2vw, 22px); line-height: 1.45; color: rgba(23, 20, 17, 0.58); text-transform: uppercase; font-weight: 800; }}
+    .choice input:checked + span {{ border-color: rgba(208, 109, 45, 0.35); background: rgba(255, 245, 237, 0.96); box-shadow: 0 0 0 8px var(--accent-soft); }}
+    .checks {{ display: flex; gap: 30px; flex-wrap: wrap; align-items: center; }}
+    .checks label {{ display: inline-flex; align-items: center; gap: 14px; font-size: clamp(20px, 2vw, 24px); font-weight: 700; color: var(--ink); }}
+    .checks input {{ width: 26px; height: 26px; margin: 0; }}
+    .actions {{ display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; padding-top: 4px; }}
+    .cta {{ border: none; border-radius: 999px; padding: 24px 40px; background: linear-gradient(135deg, #cf6a2f, #d97b22); color: #fffaf2; font-size: clamp(28px, 3vw, 40px); font-weight: 900; cursor: pointer; box-shadow: 0 18px 36px rgba(208, 109, 45, 0.20); }}
+    .hint {{ font-size: clamp(18px, 2vw, 22px); color: var(--muted); }}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    {error_html}
+    {dependency_html}
+    <section class="quick-card">
+      <div class="intro">
+        <h1>Tải nhanh</h1>
+        <p>Đây là phần bạn nên dùng trong hầu hết trường hợp. Mặc định hệ thống sẽ ưu tiên chất lượng cao nhất.</p>
+        <div class="access-note">Mở trên máy khác cùng Wi‑Fi: <a href="http://{lan_ip}:{port}">http://{lan_ip}:{port}</a></div>
+      </div>
+      <form method="post" action="/jobs/download">
+        <input type="hidden" name="mode" value="download">
+        <input type="hidden" name="quality" value="best">
+        <input type="hidden" name="remux_video" value="mp4">
+        <input type="hidden" name="output_dir" value="downloads">
+        <div class="label-block">
+          <strong>Link video</strong>
+          <input class="field" name="url" placeholder="Dán link video vào đây..." required>
+        </div>
+        <p class="section-title">Bạn muốn lấy kết quả theo kiểu nào?</p>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="download_mode" value="video_best" checked><span><strong>Video gốc đẹp nhất</strong><small>Giữ đúng tỷ lệ và chất lượng tốt nhất có thể.</small></span></label>
+          <label class="choice"><input type="radio" name="download_mode" value="video_vertical"><span><strong>Video dọc 9:16</strong><small>Phù hợp TikTok, Shorts, Reels.</small></span></label>
+          <label class="choice"><input type="radio" name="download_mode" value="audio_only"><span><strong>Chỉ lấy âm thanh</strong><small>Tải ra MP3 để nghe hoặc cắt ghép sau.</small></span></label>
+        </div>
+        <div class="checks">
+          <label><input type="checkbox" name="write_thumbnail"> lưu ảnh thumbnail</label>
+          <label><input type="checkbox" name="write_info_json"> lưu thông tin video</label>
+        </div>
+        <div class="actions">
+          <button class="cta" type="submit">Tải video ngay</button>
+          <div class="hint">Không cần đổi gì nếu bạn chỉ muốn tải video chất lượng cao.</div>
+        </div>
+      </form>
+      <section class="status-panel"><h2>Trạng thái tải</h2><div id="job-list"></div></section>
+      <section class="library"><h2>File đã tải</h2><div id="recent-files"></div></section>
+    </section>
+  </main>
+  <script>
+    const seededJobs = JSON.parse({jobs_json!r});
+    const seededFiles = JSON.parse({recent_files_json!r});
+    const form = document.querySelector("form");
+    const modeInputs = document.querySelectorAll('input[name="download_mode"]');
+    function syncMode() {{
+      const selected = document.querySelector('input[name="download_mode"]:checked')?.value;
+      if (!form.querySelector('input[name="audio_only"]')) {{ const audio = document.createElement("input"); audio.type = "hidden"; audio.name = "audio_only"; form.appendChild(audio); }}
+      if (!form.querySelector('input[name="preset_name"]')) {{ const preset = document.createElement("input"); preset.type = "hidden"; preset.name = "preset_name"; form.appendChild(preset); }}
+      const audioHidden = form.querySelector('input[name="audio_only"]');
+      const presetHidden = form.querySelector('input[name="preset_name"]');
+      const workflowField = form.querySelector('input[name="mode"]');
+      audioHidden.value = ""; presetHidden.value = "none"; workflowField.value = "download";
+      if (selected === "video_vertical") {{ workflowField.value = "workflow"; presetHidden.value = "reel"; }}
+      if (selected === "audio_only") {{ audioHidden.value = "on"; }}
+    }}
+    modeInputs.forEach((input) => input.addEventListener("change", syncMode));
+    syncMode();
+    function escapeHtml(value) {{ return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;"); }}
+    function renderJobs(items) {{
+      const root = document.getElementById("job-list");
+      if (!items.length) {{ root.innerHTML = '<div class="status-empty">Chưa có lần tải nào. Dán link rồi bấm nút để bắt đầu.</div>'; return; }}
+      root.innerHTML = items.map((job) => {{
+        const logs = (job.log_lines || []).join("\n");
+        const output = job.downloadable_path || job.output_path || "se hien khi co";
+        const linkHtml = job.downloadable_url ? `<a class="download-link" href="${{escapeHtml(job.downloadable_url)}}" download>Tải file này</a>` : "";
+        return `<article class="status-item"><div class="status-head"><div><div class="status-title">${{escapeHtml(job.title)}}</div><div class="status-meta">${{escapeHtml(job.created_label || "")}} · exit ${{escapeHtml(job.return_code ?? "-")}}</div></div><span class="status-badge ${{escapeHtml(job.status)}}">${{escapeHtml(job.status)}}</span></div><div class="status-body"><div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>${{linkHtml}}<pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre></div></article>`;
+      }}).join("");
+    }}
+    function renderRecentFiles(items) {{
+      const root = document.getElementById("recent-files");
+      if (!items.length) {{ root.innerHTML = '<div class="library-empty">Chưa có file nào trong thư mục downloads.</div>'; return; }}
+      root.innerHTML = `<div class="library-list">${{items.map((file) => `<article class="library-item"><div><div class="library-name">${{escapeHtml(file.name)}}</div><div class="library-meta">${{escapeHtml(file.size)}} · ${{escapeHtml(file.path)}}</div></div><a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a></article>`).join("")}}</div>`;
+    }}
+    renderJobs(seededJobs);
+    renderRecentFiles(seededFiles);
+    async function refreshJobs() {{ try {{ const response = await fetch("/api/jobs", {{ cache: "no-store" }}); if (!response.ok) return; renderJobs(await response.json()); }} catch (_error) {{}} }}
+    async function refreshFiles() {{ try {{ const response = await fetch("/api/files", {{ cache: "no-store" }}); if (!response.ok) return; renderRecentFiles(await response.json()); }} catch (_error) {{}} }}
+    setInterval(refreshJobs, 2500);
+    setInterval(refreshFiles, 4000);
+  </script>
+</body>
+</html>'''
+
+
+class AppHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/":
+            self.respond_html(render_page())
+            return
+        if parsed.path == "/api/jobs":
+            with jobs_lock:
+                payload = [job.to_dict() for job in sorted(jobs.values(), key=lambda item: item.created_at, reverse=True)[:20]]
+            self.respond_json(payload)
+            return
+        if parsed.path == "/healthz":
+            self.respond_json({"ok": True})
+            return
+        if parsed.path == "/api/files":
+            self.respond_json(list_recent_downloads())
+            return
+        if parsed.path.startswith("/downloads/"):
+            requested = (ROOT_DIR / parsed.path.lstrip("/")).resolve()
+            if not str(requested).startswith(str(DOWNLOADS_DIR.resolve())) or not requested.is_file():
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            self.serve_file(requested)
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_POST(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length).decode("utf-8")
+        raw_form = urllib.parse.parse_qs(body, keep_blank_values=True)
+        form = {key: values[-1] for key, values in raw_form.items()}
+        try:
+            if parsed.path == "/jobs/download":
+                create_download_job(form)
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+        except ValueError as error:
+            self.respond_html(render_page(str(error)), status=HTTPStatus.BAD_REQUEST)
+            return
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", "/")
+        self.end_headers()
+
+    def log_message(self, fmt: str, *args: object) -> None:
+        return
+
+    def respond_html(self, content: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+        encoded = content.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def respond_json(self, payload: object) -> None:
+        encoded = json.dumps(payload).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def serve_file(self, path: Path) -> None:
+        content_type, _encoding = mimetypes.guess_type(path.name)
+        data = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type or "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+def main() -> int:
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    port = get_listen_port()
+    server = ThreadingHTTPServer((HOST, port), AppHandler)
+    lan_ip = detect_lan_ip()
+    print(f"Video Forge Desk running at http://127.0.0.1:{port}")
+    print(f"LAN access: http://{lan_ip}:{port}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down.")
+    finally:
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
