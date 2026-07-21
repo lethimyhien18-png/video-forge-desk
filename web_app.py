@@ -969,16 +969,22 @@ def render_page(error_message: str = "") -> str:
         line-height: 1.35;
       }}
       .intro h1 {{
-        max-width: 7ch;
-        font-size: clamp(30px, 9.5vw, 40px);
+        max-width: 8.5ch;
+        font-size: clamp(32px, 9vw, 42px);
+        line-height: 0.98;
+        letter-spacing: -0.045em;
       }}
       .intro p {{
-        max-width: 19ch;
+        max-width: 23ch;
         font-size: 15px;
+        line-height: 1.58;
+        text-wrap: balance;
       }}
       .platform-note {{
-        max-width: 24ch;
+        max-width: 26ch;
         text-align: center;
+        line-height: 1.5;
+        text-wrap: balance;
       }}
       .label-block strong {{
         font-size: 12px;
