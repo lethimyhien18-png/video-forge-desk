@@ -398,32 +398,6 @@ def render_page(error_message: str = "") -> str:
       width: min(980px, 100%);
       margin: 0 auto;
     }}
-    .brand {{
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 18px;
-      padding: 8px 6px 0;
-    }}
-    .brand-mark {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 56px;
-      height: 56px;
-      border-radius: 999px;
-      background: radial-gradient(circle at top, #fff7ec 0%, #f0d0a1 100%);
-      border: 1px solid rgba(183, 121, 51, 0.22);
-      box-shadow: 0 12px 30px rgba(95, 61, 26, 0.12);
-      font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: 23px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: #8f5b24;
-    }}
-    .brand-copy {{
-      display: none;
-    }}
     .alert {{
       margin-bottom: 18px;
       padding: 14px 16px;
@@ -649,7 +623,7 @@ def render_page(error_message: str = "") -> str:
     .quick-card {{
       position: relative;
       overflow: hidden;
-      padding: 34px 32px 30px;
+      padding: 28px 32px 30px;
       border-radius: var(--radius);
       background:
         radial-gradient(circle at top center, rgba(231, 192, 132, 0.18), transparent 34%),
@@ -695,11 +669,11 @@ def render_page(error_message: str = "") -> str:
     .intro h1 {{
       margin: 0;
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      max-width: 14ch;
-      font-size: clamp(36px, 5.2vw, 58px);
-      line-height: 0.96;
-      letter-spacing: -0.04em;
-      text-wrap: balance;
+      max-width: none;
+      white-space: nowrap;
+      font-size: clamp(30px, 4.2vw, 44px);
+      line-height: 1.04;
+      letter-spacing: -0.03em;
     }}
     form {{
       display: grid;
@@ -813,17 +787,6 @@ def render_page(error_message: str = "") -> str:
       body {{
         padding: 16px;
       }}
-      .brand {{
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 14px;
-        padding: 2px 2px 0;
-      }}
-      .brand-mark {{
-        width: 48px;
-        height: 48px;
-        font-size: 20px;
-      }}
       .quick-card {{
         padding: 20px 18px 18px;
         gap: 16px;
@@ -850,10 +813,9 @@ def render_page(error_message: str = "") -> str:
         padding: 16px 20px;
       }}
       .intro h1 {{
-        max-width: 11ch;
-        font-size: clamp(30px, 8.4vw, 40px);
-        line-height: 0.96;
-        text-wrap: balance;
+        max-width: none;
+        font-size: clamp(22px, 4.7vw, 28px);
+        line-height: 1.08;
       }}
       .section-card {{
         padding: 18px;
@@ -899,9 +861,6 @@ def render_page(error_message: str = "") -> str:
       .shell {{
         width: 100%;
       }}
-      .brand {{
-        gap: 10px;
-      }}
       .quick-card {{
         padding: 18px 14px 16px;
       }}
@@ -916,12 +875,12 @@ def render_page(error_message: str = "") -> str:
         width: auto;
       }}
       .intro h1 {{
-        max-width: 15ch;
-        width: auto;
-        font-size: clamp(19px, 5vw, 23px);
-        line-height: 1.16;
-        letter-spacing: -0.02em;
-        text-wrap: pretty;
+        max-width: none;
+        width: 100%;
+        white-space: nowrap;
+        font-size: clamp(17px, 4.6vw, 20px);
+        line-height: 1.14;
+        letter-spacing: -0.015em;
         text-align: center;
         font-weight: 600;
       }}
@@ -961,9 +920,6 @@ def render_page(error_message: str = "") -> str:
   <main class="shell">
     {error_html}
     {dependency_html}
-    <div class="brand">
-      <div class="brand-mark">H</div>
-    </div>
     <div id="job-banner" class="job-banner" aria-live="polite"></div>
     <section class="quick-card">
       <div class="intro">
@@ -1377,6 +1333,7 @@ def render_media_save_page(job: Job, media_url: str) -> str:
       <div class="file-name">{file_name}</div>
       <div class="actions">
         <button type="button" class="button primary" id="share-file">{share_label}</button>
+        <a class="button secondary" href="/">Quay về trang chính</a>
       </div>
     </section>
   </main>
