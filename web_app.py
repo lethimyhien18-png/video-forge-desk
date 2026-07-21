@@ -389,23 +389,22 @@ def render_page(error_message: str = "") -> str:
     .brand {{
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      gap: 14px;
       margin-bottom: 18px;
-      padding: 10px 4px 0;
+      padding: 8px 6px 0;
     }}
     .brand-mark {{
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 46px;
-      height: 46px;
+      width: 56px;
+      height: 56px;
       border-radius: 999px;
-      background: linear-gradient(135deg, #fff8ef, #f0d7b1);
-      border: 1px solid rgba(183, 121, 51, 0.18);
-      box-shadow: 0 10px 24px rgba(95, 61, 26, 0.10);
+      background: radial-gradient(circle at top, #fff7ec 0%, #f0d0a1 100%);
+      border: 1px solid rgba(183, 121, 51, 0.22);
+      box-shadow: 0 12px 30px rgba(95, 61, 26, 0.12);
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: 18px;
+      font-size: 23px;
       font-weight: 700;
       letter-spacing: 0.08em;
       color: #8f5b24;
@@ -417,12 +416,13 @@ def render_page(error_message: str = "") -> str:
     }}
     .brand-name {{
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: 28px;
+      font-size: 34px;
       font-weight: 700;
       letter-spacing: -0.03em;
+      line-height: 0.98;
     }}
     .brand-sub {{
-      font-size: 14px;
+      font-size: 15px;
       color: var(--muted);
     }}
     .alert {{
@@ -705,68 +705,112 @@ def render_page(error_message: str = "") -> str:
       font-size: 13px;
     }}
     .quick-card {{
-      padding: 32px;
+      position: relative;
+      overflow: hidden;
+      padding: 34px 32px 30px;
       border-radius: var(--radius);
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.70), rgba(255,255,255,0.34)),
+        radial-gradient(circle at top center, rgba(231, 192, 132, 0.18), transparent 34%),
+        linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48)),
         var(--card);
       border: 1px solid rgba(183, 121, 51, 0.15);
       box-shadow: var(--shadow);
       display: grid;
       gap: 22px;
     }}
+    .quick-card::before {{
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 50%;
+      width: 320px;
+      height: 320px;
+      transform: translateX(-50%);
+      background: radial-gradient(circle, rgba(223, 177, 111, 0.22), transparent 68%);
+      pointer-events: none;
+    }}
     .intro {{
+      position: relative;
       display: grid;
       justify-items: center;
       text-align: center;
-      gap: 10px;
+      gap: 12px;
+      padding-top: 8px;
+    }}
+    .hero-kicker {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: rgba(255, 248, 239, 0.92);
+      border: 1px solid rgba(183, 121, 51, 0.16);
+      color: #8a5926;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
     }}
     .intro h1 {{
       margin: 0;
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: clamp(38px, 5.4vw, 56px);
-      line-height: 0.98;
+      max-width: 12ch;
+      font-size: clamp(42px, 6vw, 72px);
+      line-height: 0.92;
       letter-spacing: -0.04em;
     }}
     .intro p {{
       margin: 0;
-      max-width: 760px;
-      font-size: clamp(16px, 1.9vw, 18px);
-      line-height: 1.5;
+      max-width: 680px;
+      font-size: clamp(17px, 2vw, 20px);
+      line-height: 1.58;
       color: var(--muted);
     }}
     .platform-note {{
-      font-size: 15px;
-      line-height: 1.6;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 18px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(183, 121, 51, 0.12);
+      font-size: 14px;
+      line-height: 1.5;
       color: #84592a;
       font-weight: 700;
     }}
     form {{
       display: grid;
       gap: 18px;
+      padding: 24px;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid rgba(31, 24, 18, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
     }}
     .label-block {{
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }}
     .label-block strong {{
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: #8f5b24;
+      text-align: center;
     }}
     .field {{
       width: 100%;
-      height: 78px;
-      border-radius: 24px;
-      border: 2px solid rgba(23, 20, 17, 0.10);
-      background: rgba(255,255,255,0.92);
-      padding: 0 22px;
+      height: 84px;
+      border-radius: 26px;
+      border: 2px solid rgba(183, 121, 51, 0.14);
+      background: rgba(255,255,255,0.94);
+      padding: 0 26px;
       font-size: clamp(18px, 2.2vw, 22px);
       font-weight: 700;
       color: var(--ink);
       outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.92);
     }}
     .field::placeholder {{
       color: rgba(23, 20, 17, 0.5);
@@ -798,21 +842,29 @@ def render_page(error_message: str = "") -> str:
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding-top: 8px;
+      gap: 12px;
+      padding-top: 4px;
     }}
     .cta {{
       border: none;
-      border-radius: 999px;
+      border-radius: 24px;
       width: 100%;
+      min-height: 84px;
       padding: 20px 28px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.02)),
+        linear-gradient(135deg, #b8742c, #e0b168);
       color: #fffaf2;
-      font-size: clamp(22px, 3vw, 28px);
+      font-size: clamp(24px, 3.2vw, 30px);
       font-weight: 900;
       cursor: pointer;
-      box-shadow: 0 18px 36px rgba(183, 121, 51, 0.24);
+      box-shadow: 0 22px 40px rgba(183, 121, 51, 0.24);
+      transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+    }}
+    .cta:hover {{
+      transform: translateY(-1px);
+      filter: saturate(1.05);
+      box-shadow: 0 26px 42px rgba(183, 121, 51, 0.28);
     }}
     .cta[disabled] {{
       cursor: wait;
@@ -831,7 +883,7 @@ def render_page(error_message: str = "") -> str:
     .section-card {{
       padding: 22px;
       border-radius: 24px;
-      background: rgba(255,255,255,0.58);
+      background: rgba(255,255,255,0.52);
       border: 1px solid rgba(31, 24, 18, 0.08);
     }}
     @media (max-width: 820px) {{
@@ -841,17 +893,30 @@ def render_page(error_message: str = "") -> str:
       .brand {{
         align-items: flex-start;
       }}
+      .brand-name {{
+        font-size: 30px;
+      }}
       .quick-card {{
         padding: 22px;
         gap: 18px;
+      }}
+      form {{
+        padding: 18px;
       }}
       .field {{
         height: 76px;
         border-radius: 24px;
         padding: 0 20px;
       }}
-      .choice span {{
-        padding: 18px;
+      .cta {{
+        min-height: 74px;
+        border-radius: 22px;
+      }}
+      .intro h1 {{
+        max-width: 9ch;
+      }}
+      .platform-note {{
+        padding: 10px 14px;
       }}
     }}
   </style>
@@ -870,9 +935,10 @@ def render_page(error_message: str = "") -> str:
     <div id="job-banner" class="job-banner" aria-live="polite"></div>
     <section class="quick-card">
       <div class="intro">
-        <h1>Tải video chỉ với 1 link</h1>
-        <p>Dán link rồi tải ngay. Hệ thống tự ưu tiên chất lượng đẹp và cách lưu dễ nhất trên điện thoại.</p>
-        <div class="platform-note">Hỗ trợ link từ TikTok, Facebook, YouTube, X và các dạng Shorts, Reels.</div>
+        <div class="hero-kicker">TikTok • Facebook • YouTube • X</div>
+        <h1>Dán link, lấy video đẹp ngay</h1>
+        <p>Tải nhanh, lưu dễ, ưu tiên bản đẹp nhất để dùng tốt trên điện thoại.</p>
+        <div class="platform-note">Hỗ trợ video thường, Shorts, Reels và nhiều link chia sẻ phổ biến.</div>
       </div>
 
       <form method="post" action="/jobs/download">
