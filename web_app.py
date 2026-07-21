@@ -916,10 +916,10 @@ def render_page(error_message: str = "") -> str:
         width: auto;
       }}
       .intro h1 {{
-        max-width: 11ch;
+        max-width: 15ch;
         width: auto;
-        font-size: clamp(20px, 5.4vw, 24px);
-        line-height: 1.2;
+        font-size: clamp(19px, 5vw, 23px);
+        line-height: 1.16;
         letter-spacing: -0.02em;
         text-wrap: pretty;
         text-align: center;
@@ -968,7 +968,7 @@ def render_page(error_message: str = "") -> str:
     <section class="quick-card">
       <div class="intro">
         <div class="hero-kicker">TikTok • Facebook • YouTube • X</div>
-        <h1>Tải video chất lượng, không dính logo nền tảng</h1>
+        <h1>Tải video sạch logo, chất lượng cao</h1>
       </div>
 
       <form method="post" action="/jobs/download">
