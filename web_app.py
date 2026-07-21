@@ -846,32 +846,164 @@ def render_page(error_message: str = "") -> str:
         padding: 16px;
       }}
       .brand {{
-        align-items: flex-start;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        padding: 2px 2px 0;
+      }}
+      .brand-mark {{
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
       }}
       .brand-name {{
-        font-size: 30px;
+        font-size: 26px;
+        line-height: 1;
+      }}
+      .brand-sub {{
+        font-size: 14px;
       }}
       .quick-card {{
-        padding: 22px;
-        gap: 18px;
+        padding: 20px 18px 18px;
+        gap: 16px;
+      }}
+      .hero-kicker {{
+        padding: 8px 14px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
       }}
       form {{
-        padding: 18px;
-      }}
-      .field {{
-        height: 76px;
-        border-radius: 24px;
-        padding: 0 20px;
-      }}
-      .cta {{
-        min-height: 74px;
+        padding: 16px;
         border-radius: 22px;
       }}
+      .field {{
+        height: 68px;
+        border-radius: 20px;
+        padding: 0 18px;
+        font-size: 18px;
+      }}
+      .cta {{
+        min-height: 68px;
+        border-radius: 20px;
+        font-size: 22px;
+        padding: 16px 20px;
+      }}
       .intro h1 {{
-        max-width: 9ch;
+        max-width: 8ch;
+        font-size: clamp(34px, 10vw, 48px);
+        line-height: 0.96;
+      }}
+      .intro p {{
+        max-width: 22ch;
+        font-size: 16px;
+        line-height: 1.52;
       }}
       .platform-note {{
-        padding: 10px 14px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.45;
+      }}
+      .section-card {{
+        padding: 18px;
+        border-radius: 22px;
+      }}
+      .status-panel h2 {{
+        font-size: 26px;
+      }}
+      .status-title {{
+        font-size: 20px;
+      }}
+      .status-head {{
+        padding: 14px 14px 8px;
+        align-items: flex-start;
+      }}
+      .status-body {{
+        padding: 0 14px 14px;
+      }}
+      .save-callout {{
+        padding: 16px;
+        border-radius: 18px;
+      }}
+      .save-callout strong {{
+        font-size: 22px;
+      }}
+      .save-callout p,
+      .mini-hint,
+      .status-note,
+      .technical-toggle summary,
+      .technical-path {{
+        font-size: 13px;
+        line-height: 1.45;
+      }}
+      .download-link.primary {{
+        min-height: 56px;
+        font-size: 15px;
+      }}
+    }}
+    @media (max-width: 560px) {{
+      body {{
+        padding: 12px;
+      }}
+      .shell {{
+        width: 100%;
+      }}
+      .brand {{
+        gap: 10px;
+      }}
+      .brand-name {{
+        font-size: 23px;
+      }}
+      .brand-sub {{
+        max-width: 20ch;
+        line-height: 1.35;
+      }}
+      .quick-card {{
+        padding: 18px 14px 16px;
+      }}
+      .intro {{
+        gap: 10px;
+        padding-top: 2px;
+      }}
+      .hero-kicker {{
+        text-align: center;
+        line-height: 1.35;
+      }}
+      .intro h1 {{
+        max-width: 7ch;
+        font-size: clamp(30px, 9.5vw, 40px);
+      }}
+      .intro p {{
+        max-width: 19ch;
+        font-size: 15px;
+      }}
+      .platform-note {{
+        max-width: 24ch;
+        text-align: center;
+      }}
+      .label-block strong {{
+        font-size: 12px;
+      }}
+      .field {{
+        height: 62px;
+        font-size: 17px;
+      }}
+      .field::placeholder {{
+        font-size: 17px;
+      }}
+      .cta {{
+        min-height: 62px;
+        font-size: 20px;
+      }}
+      .status-badge {{
+        padding: 7px 10px;
+        font-size: 11px;
+      }}
+      .status-title {{
+        font-size: 18px;
+      }}
+      .status-empty {{
+        font-size: 16px;
+        line-height: 1.5;
       }}
     }}
   </style>
