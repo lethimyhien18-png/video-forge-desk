@@ -906,7 +906,7 @@ def render_page(error_message: str = "") -> str:
           <div id="job-list"></div>
         </section>
 
-        <section class="library section-card">
+        <section id="library-section" class="library section-card">
           <h2>File đã tải</h2>
           <div id="recent-files"></div>
         </section>
@@ -922,6 +922,7 @@ def render_page(error_message: str = "") -> str:
     const submitButton = form.querySelector('button[type="submit"]');
     const defaultButtonLabel = submitButton.textContent;
     const statusSection = document.querySelector(".status-panel");
+    const librarySection = document.getElementById("library-section");
     const jobBanner = document.getElementById("job-banner");
     let lastHighlightedJobId = "";
 
@@ -1103,9 +1104,11 @@ def render_page(error_message: str = "") -> str:
     function renderRecentFiles(items) {{
       const root = document.getElementById("recent-files");
       if (!items.length) {{
-        root.innerHTML = '<div class="library-empty">Chưa có file nào trong thư mục downloads.</div>';
+        librarySection.style.display = "none";
+        root.innerHTML = "";
         return;
       }}
+      librarySection.style.display = "";
       root.innerHTML = `
         <div class="library-list">
           ${{items.map((file) => `
