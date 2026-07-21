@@ -696,8 +696,8 @@ def render_page(error_message: str = "") -> str:
       margin: 0;
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
       max-width: 12ch;
-      font-size: clamp(42px, 6vw, 72px);
-      line-height: 0.92;
+      font-size: clamp(36px, 5.2vw, 58px);
+      line-height: 0.96;
       letter-spacing: -0.04em;
     }}
     form {{
@@ -850,7 +850,7 @@ def render_page(error_message: str = "") -> str:
       }}
       .intro h1 {{
         max-width: 8ch;
-        font-size: clamp(34px, 10vw, 48px);
+        font-size: clamp(30px, 8.4vw, 40px);
         line-height: 0.96;
       }}
       .section-card {{
@@ -913,7 +913,7 @@ def render_page(error_message: str = "") -> str:
       }}
       .intro h1 {{
         max-width: 8.5ch;
-        font-size: clamp(32px, 9vw, 42px);
+        font-size: clamp(28px, 7.8vw, 36px);
         line-height: 0.98;
         letter-spacing: -0.045em;
       }}
@@ -956,7 +956,7 @@ def render_page(error_message: str = "") -> str:
     <section class="quick-card">
       <div class="intro">
         <div class="hero-kicker">TikTok • Facebook • YouTube • X</div>
-        <h1>Dán link, lấy video đẹp ngay</h1>
+        <h1>Tải video chất lượng, không dính logo nền tảng</h1>
       </div>
 
       <form method="post" action="/jobs/download">
