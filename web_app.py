@@ -422,16 +422,7 @@ def render_page(error_message: str = "") -> str:
       color: #8f5b24;
     }}
     .brand-copy {{
-      display: grid;
-      gap: 2px;
-      flex: 1;
-    }}
-    .brand-name {{
-      font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: 34px;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 0.98;
+      display: none;
     }}
     .alert {{
       margin-bottom: 18px;
@@ -832,10 +823,6 @@ def render_page(error_message: str = "") -> str:
         height: 48px;
         font-size: 20px;
       }}
-      .brand-name {{
-        font-size: 26px;
-        line-height: 1;
-      }}
       .quick-card {{
         padding: 20px 18px 18px;
         gap: 16px;
@@ -913,9 +900,6 @@ def render_page(error_message: str = "") -> str:
       .brand {{
         gap: 10px;
       }}
-      .brand-name {{
-        font-size: 23px;
-      }}
       .quick-card {{
         padding: 18px 14px 16px;
       }}
@@ -967,9 +951,6 @@ def render_page(error_message: str = "") -> str:
     {dependency_html}
     <div class="brand">
       <div class="brand-mark">H</div>
-      <div class="brand-copy">
-        <div class="brand-name">hungphatluxury</div>
-      </div>
     </div>
     <div id="job-banner" class="job-banner" aria-live="polite"></div>
     <section class="quick-card">
