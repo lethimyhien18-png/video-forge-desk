@@ -780,52 +780,6 @@ def render_page(error_message: str = "") -> str:
       border-color: rgba(208, 109, 45, 0.55);
       box-shadow: 0 0 0 6px rgba(208, 109, 45, 0.10);
     }}
-    .section-title {{
-      font-size: clamp(17px, 2vw, 19px);
-      color: var(--muted);
-      margin: 0;
-      font-weight: 700;
-    }}
-    .choice-row {{
-      display: grid;
-      gap: 14px;
-    }}
-    .choice {{
-      position: relative;
-    }}
-    .choice input {{
-      position: absolute;
-      opacity: 0;
-      pointer-events: none;
-    }}
-    .choice span {{
-      display: block;
-      padding: 20px 20px 22px;
-      border-radius: 24px;
-      border: 2px solid rgba(23, 20, 17, 0.10);
-      background: rgba(255,255,255,0.76);
-      cursor: pointer;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-    }}
-    .choice strong {{
-      display: block;
-      font-size: clamp(22px, 3vw, 28px);
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      margin-bottom: 8px;
-    }}
-    .choice small {{
-      display: block;
-      font-size: clamp(14px, 1.8vw, 16px);
-      line-height: 1.5;
-      color: rgba(23, 20, 17, 0.58);
-      font-weight: 700;
-    }}
-    .choice input:checked + span {{
-      border-color: rgba(208, 109, 45, 0.35);
-      background: rgba(255, 245, 237, 0.96);
-      box-shadow: 0 0 0 8px var(--accent-soft);
-    }}
     .checks {{
       display: flex;
       gap: 18px;
@@ -849,9 +803,9 @@ def render_page(error_message: str = "") -> str:
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
-      padding-top: 4px;
+      padding-top: 8px;
     }}
     .cta {{
       border: none;
@@ -939,32 +893,6 @@ def render_page(error_message: str = "") -> str:
         <div class="label-block">
           <strong>Link video</strong>
           <input class="field" name="url" placeholder="Dán link video vào đây..." required>
-        </div>
-
-        <p class="section-title">Bạn muốn lấy kết quả theo kiểu nào?</p>
-
-        <div class="choice-row">
-          <label class="choice">
-            <input type="radio" name="download_mode" value="video_best" checked>
-            <span>
-              <strong>Video gốc đẹp nhất</strong>
-              <small>Giữ đúng tỷ lệ và chất lượng tốt nhất có thể.</small>
-            </span>
-          </label>
-          <label class="choice">
-            <input type="radio" name="download_mode" value="video_vertical">
-            <span>
-              <strong>Video dọc 9:16</strong>
-              <small>Phù hợp TikTok, Shorts, Reels.</small>
-            </span>
-          </label>
-          <label class="choice">
-            <input type="radio" name="download_mode" value="audio_only">
-            <span>
-              <strong>Chỉ lấy âm thanh</strong>
-              <small>Tải ra MP3 để nghe hoặc cắt ghép sau.</small>
-            </span>
-          </label>
         </div>
 
         <div class="actions">
