@@ -115,7 +115,7 @@ def list_recent_downloads(limit: int = 10) -> List[Dict[str, str]]:
     for item in files[:limit]:
         try:
             relative = item.resolve().relative_to(ROOT_DIR.resolve())
-            url = "/" + str(relative).replace(os.sep, "/")
+            url = "/downloads/" + urllib.parse.quote(str(relative).replace(os.sep, "/").removeprefix("downloads/"))
         except ValueError:
             continue
         results.append(
@@ -209,11 +209,7 @@ def run_job(job_id: str) -> None:
         downloadable = detect_downloadable_file(latest.output_path)
         if downloadable:
             latest.downloadable_path = str(downloadable)
-            try:
-                relative = downloadable.resolve().relative_to(ROOT_DIR.resolve())
-                latest.downloadable_url = "/" + str(relative).replace(os.sep, "/")
-            except ValueError:
-                latest.downloadable_url = ""
+            latest.downloadable_url = f"/download/{job_id}"
 
 
 def build_common_download_args(form: Dict[str, str]) -> List[str]:
@@ -1149,6 +1145,66 @@ def render_page(error_message: str = "") -> str:
 </html>"""
 
 
+def render_download_missing_page() -> str:
+    return """<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Không tìm thấy file tải</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f7f1e8 0%, #efe2cf 100%);
+      color: #241a12;
+    }
+    .card {
+      width: min(560px, 100%);
+      padding: 28px;
+      border-radius: 24px;
+      background: rgba(255, 252, 248, 0.94);
+      border: 1px solid rgba(36, 26, 18, 0.10);
+      box-shadow: 0 24px 50px rgba(100, 65, 30, 0.12);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      line-height: 1.05;
+    }
+    p {
+      margin: 0 0 14px;
+      font-size: 17px;
+      line-height: 1.6;
+      color: rgba(36, 26, 18, 0.72);
+    }
+    a {
+      display: inline-flex;
+      margin-top: 10px;
+      padding: 14px 18px;
+      border-radius: 999px;
+      background: #c87432;
+      color: white;
+      text-decoration: none;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>File tải không còn sẵn sàng</h1>
+    <p>Liên kết này đã hết hiệu lực hoặc file đã không còn trên máy chủ.</p>
+    <p>Hãy quay lại trang chính, dán link video và tải lại một lần nữa để tạo file mới.</p>
+    <a href="/">Quay lại trang tải video</a>
+  </div>
+</body>
+</html>"""
+
+
 class AppHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
@@ -1166,10 +1222,28 @@ class AppHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/files":
             self.respond_json(list_recent_downloads())
             return
-        if parsed.path.startswith("/downloads/"):
-            requested = (ROOT_DIR / parsed.path.lstrip("/")).resolve()
-            if not str(requested).startswith(str(DOWNLOADS_DIR.resolve())) or not requested.is_file():
+        if parsed.path.startswith("/download/"):
+            job_id = parsed.path.removeprefix("/download/").strip("/")
+            if not job_id:
                 self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            with jobs_lock:
+                job = jobs.get(job_id)
+                target_path = job.downloadable_path if job else ""
+            if not target_path:
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
+                return
+            target = Path(target_path)
+            if not target.exists() or not target.is_file():
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
+                return
+            self.serve_file(target)
+            return
+        if parsed.path.startswith("/downloads/"):
+            relative_path = urllib.parse.unquote(parsed.path.removeprefix("/downloads/"))
+            requested = (DOWNLOADS_DIR / relative_path).resolve()
+            if not str(requested).startswith(str(DOWNLOADS_DIR.resolve())) or not requested.is_file():
+                self.respond_html(render_download_missing_page(), status=HTTPStatus.GONE)
                 return
             self.serve_file(requested)
             return
