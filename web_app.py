@@ -277,18 +277,43 @@ def create_download_job(form: Dict[str, str]) -> Job:
     return make_job(title, command, output_path=output_path)
 
 
+def create_batch_job(form: Dict[str, str]) -> Job:
+    urls_raw = form.get("urls", "").strip()
+    if not urls_raw:
+        raise ValueError("Danh sach URL dang trong.")
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt", dir=str(ROOT_DIR), encoding="utf-8") as handle:
+        handle.write(urls_raw)
+        temp_path = handle.name
+    command = ["python3", str(SCRIPT_PATH), "batch", temp_path]
+    command.extend(build_common_download_args(form))
+    title = f"batch: {len([line for line in urls_raw.splitlines() if line.strip()])} urls"
+    output_path = str(ROOT_DIR / (form.get("output_dir", "downloads") or "downloads"))
+    return make_job(title, command, output_path=output_path, cleanup_file=temp_path)
+
+
+def create_edit_job(form: Dict[str, str]) -> Job:
+    input_file = form.get("input_file", "").strip()
+    if not input_file:
+        raise ValueError("Chua nhap duong dan file can edit.")
+    command = ["python3", str(SCRIPT_PATH), "edit", input_file]
+    command.extend(build_edit_args(form))
+    title = f"edit: {Path(input_file).name}"
+    output_path = form.get("output", "").strip() or str(Path(input_file).with_name(f"{Path(input_file).stem}_edited{Path(input_file).suffix}"))
+    return make_job(title, command, output_path=output_path)
+
+
 def render_page(error_message: str = "") -> str:
     with jobs_lock:
         job_list = sorted(jobs.values(), key=lambda item: item.created_at, reverse=True)
         job_rows = [job.to_dict() for job in job_list[:12]]
 
     deps = dependency_report()
-    lan_ip = detect_lan_ip()
-    port = get_listen_port()
     recent_files = list_recent_downloads()
     jobs_json = html.escape(json.dumps(job_rows))
     recent_files_json = html.escape(json.dumps(recent_files))
-    error_html = f'<div class="alert">{html.escape(error_message)}</div>' if error_message else ""
+    error_html = ""
+    if error_message:
+        error_html = f'<div class="alert">{html.escape(error_message)}</div>'
     missing_tools = []
     if not deps["yt_dlp"]:
         missing_tools.append("yt-dlp")
@@ -296,12 +321,16 @@ def render_page(error_message: str = "") -> str:
         missing_tools.append("ffmpeg")
     dependency_html = ""
     if missing_tools:
+        install_hint = "Chạy ./setup_deps.sh để xem cách cài nhanh."
+        if os.uname().sysname == "Darwin" and not deps["brew"]:
+            install_hint = 'Máy macOS này chưa có Homebrew. Hãy cài Homebrew trước, rồi chạy `brew install yt-dlp ffmpeg` hoặc `./setup_deps.sh`.'
         dependency_html = (
             '<div class="alert"><strong>Chưa thể tải video thật.</strong> '
-            f'Máy này đang thiếu: {html.escape(", ".join(missing_tools))}.</div>'
+            f'Máy này đang thiếu: {html.escape(", ".join(missing_tools))}. '
+            f'{html.escape(install_hint)}</div>'
         )
 
-    return f'''<!doctype html>
+    return f"""<!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8">
@@ -321,52 +350,314 @@ def render_page(error_message: str = "") -> str:
       --shadow: 0 22px 56px rgba(85, 57, 28, 0.12);
     }}
     * {{ box-sizing: border-box; }}
-    body {{ margin: 0; min-height: 100vh; color: var(--ink); font-family: "Avenir Next", "Segoe UI", sans-serif; background: radial-gradient(circle at 0% 0%, rgba(208, 109, 45, 0.16), transparent 24%), radial-gradient(circle at 100% 0%, rgba(210, 173, 124, 0.16), transparent 24%), linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%); padding: 28px; }}
-    .shell {{ width: min(1280px, 100%); margin: 0 auto; }}
-    .alert {{ margin-bottom: 18px; padding: 14px 16px; border-radius: 18px; background: rgba(178,34,34,0.08); border: 1px solid rgba(178,34,34,0.15); color: #8d1c1c; }}
-    .status-panel, .library {{ margin-top: 8px; padding-top: 8px; display: grid; gap: 14px; }}
-    .status-panel h2, .library h2 {{ margin: 0; font-family: "Iowan Old Style", "Palatino Linotype", serif; font-size: clamp(30px, 3vw, 40px); }}
-    .status-empty, .library-empty {{ color: var(--muted); font-size: clamp(18px, 2vw, 22px); }}
-    .status-item {{ border: 1px solid rgba(23, 20, 17, 0.10); border-radius: 24px; background: rgba(255,255,255,0.74); overflow: hidden; }}
-    .status-head {{ padding: 14px 16px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }}
-    .status-title {{ font-size: 18px; font-weight: 800; }}
-    .status-meta, .status-path, .library-meta {{ font-size: 14px; color: var(--muted); word-break: break-word; }}
-    .status-badge {{ padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(208, 109, 45, 0.16), transparent 24%),
+        radial-gradient(circle at 100% 0%, rgba(210, 173, 124, 0.16), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+      padding: 28px;
+    }}
+    .shell {{
+      width: min(1280px, 100%);
+      margin: 0 auto;
+    }}
+    .alert {{
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(178,34,34,0.08);
+      border: 1px solid rgba(178,34,34,0.15);
+      color: #8d1c1c;
+    }}
+    .status-panel {{
+      margin-top: 8px;
+      padding-top: 8px;
+      display: grid;
+      gap: 14px;
+    }}
+    .status-panel h2 {{
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-size: clamp(30px, 3vw, 40px);
+    }}
+    .status-empty {{
+      color: var(--muted);
+      font-size: clamp(18px, 2vw, 22px);
+    }}
+    .status-item {{
+      border: 1px solid rgba(23, 20, 17, 0.10);
+      border-radius: 24px;
+      background: rgba(255,255,255,0.74);
+      overflow: hidden;
+    }}
+    .status-head {{
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }}
+    .status-title {{
+      font-size: 18px;
+      font-weight: 800;
+    }}
+    .status-meta {{
+      font-size: 14px;
+      color: var(--muted);
+    }}
+    .status-badge {{
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
     .queued {{ background: rgba(33,66,77,0.10); color: #21424d; }}
     .running {{ background: rgba(255,186,73,0.22); color: #7d4a00; }}
     .done {{ background: rgba(76,175,80,0.18); color: #1f6a2b; }}
     .failed {{ background: rgba(178,34,34,0.12); color: #8d1c1c; }}
-    .status-body {{ padding: 0 16px 16px; display: grid; gap: 10px; }}
-    .status-log {{ margin: 0; padding: 12px; border-radius: 14px; background: rgba(22,18,13,0.92); color: #f6e8cf; max-height: 170px; overflow: auto; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }}
-    .download-link {{ display: inline-flex; width: fit-content; padding: 10px 14px; border-radius: 999px; background: rgba(208, 109, 45, 0.12); color: #9a4f1f; text-decoration: none; font-weight: 800; }}
-    .library-list {{ display: grid; gap: 10px; }}
-    .library-item {{ padding: 14px 16px; border: 1px solid rgba(23, 20, 17, 0.10); border-radius: 20px; background: rgba(255,255,255,0.72); display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }}
-    .library-name {{ font-weight: 800; font-size: 16px; }}
-    .quick-card {{ padding: 34px 36px 36px; border-radius: var(--radius); background: linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.28)), var(--card); border: 1px solid rgba(208, 109, 45, 0.18); box-shadow: var(--shadow); display: grid; gap: 24px; }}
-    .intro h1 {{ margin: 0 0 10px; font-family: "Iowan Old Style", "Palatino Linotype", serif; font-size: clamp(52px, 6vw, 74px); line-height: 0.96; letter-spacing: -0.04em; }}
-    .intro p {{ margin: 0; max-width: 900px; font-size: clamp(18px, 2vw, 22px); line-height: 1.5; color: var(--muted); }}
-    .access-note {{ margin-top: 6px; font-size: clamp(16px, 1.8vw, 20px); color: var(--muted); }}
-    .access-note a {{ color: #9a4f1f; font-weight: 800; text-decoration: none; }}
-    form {{ display: grid; gap: 22px; }}
-    .label-block {{ display: grid; gap: 12px; }}
-    .label-block strong {{ font-size: 28px; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; }}
-    .field {{ width: 100%; height: 92px; border-radius: 30px; border: 2px solid rgba(23, 20, 17, 0.10); background: rgba(255,255,255,0.84); padding: 0 28px; font-size: clamp(24px, 2.5vw, 30px); font-weight: 700; color: var(--ink); outline: none; }}
-    .field::placeholder {{ color: rgba(23, 20, 17, 0.5); }}
-    .field:focus {{ border-color: rgba(208, 109, 45, 0.55); box-shadow: 0 0 0 6px rgba(208, 109, 45, 0.10); }}
-    .section-title {{ font-size: clamp(24px, 2.6vw, 30px); color: var(--muted); margin: 0; }}
-    .choice-row {{ display: grid; gap: 20px; }}
-    .choice {{ position: relative; }}
-    .choice input {{ position: absolute; opacity: 0; pointer-events: none; }}
-    .choice span {{ display: block; padding: 28px 28px 30px; border-radius: 34px; border: 2px solid rgba(23, 20, 17, 0.10); background: rgba(255,255,255,0.72); cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }}
-    .choice strong {{ display: block; font-size: clamp(30px, 3vw, 42px); font-weight: 900; text-transform: uppercase; letter-spacing: -0.03em; margin-bottom: 12px; }}
-    .choice small {{ display: block; font-size: clamp(18px, 2vw, 22px); line-height: 1.45; color: rgba(23, 20, 17, 0.58); text-transform: uppercase; font-weight: 800; }}
-    .choice input:checked + span {{ border-color: rgba(208, 109, 45, 0.35); background: rgba(255, 245, 237, 0.96); box-shadow: 0 0 0 8px var(--accent-soft); }}
-    .checks {{ display: flex; gap: 30px; flex-wrap: wrap; align-items: center; }}
-    .checks label {{ display: inline-flex; align-items: center; gap: 14px; font-size: clamp(20px, 2vw, 24px); font-weight: 700; color: var(--ink); }}
-    .checks input {{ width: 26px; height: 26px; margin: 0; }}
-    .actions {{ display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; padding-top: 4px; }}
-    .cta {{ border: none; border-radius: 999px; padding: 24px 40px; background: linear-gradient(135deg, #cf6a2f, #d97b22); color: #fffaf2; font-size: clamp(28px, 3vw, 40px); font-weight: 900; cursor: pointer; box-shadow: 0 18px 36px rgba(208, 109, 45, 0.20); }}
-    .hint {{ font-size: clamp(18px, 2vw, 22px); color: var(--muted); }}
+    .status-body {{
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 10px;
+    }}
+    .status-path {{
+      font-size: 15px;
+      color: var(--muted);
+      word-break: break-word;
+    }}
+    .status-log {{
+      margin: 0;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(22,18,13,0.92);
+      color: #f6e8cf;
+      max-height: 170px;
+      overflow: auto;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+    }}
+    .download-link {{
+      display: inline-flex;
+      width: fit-content;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(208, 109, 45, 0.12);
+      color: #9a4f1f;
+      text-decoration: none;
+      font-weight: 800;
+    }}
+    .library {{
+      margin-top: 8px;
+      display: grid;
+      gap: 12px;
+    }}
+    .library h2 {{
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-size: clamp(30px, 3vw, 40px);
+    }}
+    .library-empty {{
+      color: var(--muted);
+      font-size: clamp(18px, 2vw, 22px);
+    }}
+    .library-list {{
+      display: grid;
+      gap: 10px;
+    }}
+    .library-item {{
+      padding: 14px 16px;
+      border: 1px solid rgba(23, 20, 17, 0.10);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.72);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .library-name {{
+      font-weight: 800;
+      font-size: 16px;
+    }}
+    .library-meta {{
+      color: var(--muted);
+      font-size: 14px;
+      word-break: break-word;
+    }}
+    .quick-card {{
+      padding: 34px 36px 36px;
+      border-radius: var(--radius);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.28)),
+        var(--card);
+      border: 1px solid rgba(208, 109, 45, 0.18);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 24px;
+    }}
+    .intro h1 {{
+      margin: 0 0 10px;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-size: clamp(52px, 6vw, 74px);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }}
+    .intro p {{
+      margin: 0;
+      max-width: 900px;
+      font-size: clamp(18px, 2vw, 22px);
+      line-height: 1.5;
+      color: var(--muted);
+    }}
+    form {{
+      display: grid;
+      gap: 22px;
+    }}
+    .label-block {{
+      display: grid;
+      gap: 12px;
+    }}
+    .label-block strong {{
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+    }}
+    .field {{
+      width: 100%;
+      height: 92px;
+      border-radius: 30px;
+      border: 2px solid rgba(23, 20, 17, 0.10);
+      background: rgba(255,255,255,0.84);
+      padding: 0 28px;
+      font-size: clamp(24px, 2.5vw, 30px);
+      font-weight: 700;
+      color: var(--ink);
+      outline: none;
+    }}
+    .field::placeholder {{
+      color: rgba(23, 20, 17, 0.5);
+    }}
+    .field:focus {{
+      border-color: rgba(208, 109, 45, 0.55);
+      box-shadow: 0 0 0 6px rgba(208, 109, 45, 0.10);
+    }}
+    .section-title {{
+      font-size: clamp(24px, 2.6vw, 30px);
+      color: var(--muted);
+      margin: 0;
+    }}
+    .choice-row {{
+      display: grid;
+      gap: 20px;
+    }}
+    .choice {{
+      position: relative;
+    }}
+    .choice input {{
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }}
+    .choice span {{
+      display: block;
+      padding: 28px 28px 30px;
+      border-radius: 34px;
+      border: 2px solid rgba(23, 20, 17, 0.10);
+      background: rgba(255,255,255,0.72);
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }}
+    .choice strong {{
+      display: block;
+      font-size: clamp(30px, 3vw, 42px);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+    }}
+    .choice small {{
+      display: block;
+      font-size: clamp(18px, 2vw, 22px);
+      line-height: 1.45;
+      color: rgba(23, 20, 17, 0.58);
+      text-transform: uppercase;
+      font-weight: 800;
+    }}
+    .choice input:checked + span {{
+      border-color: rgba(208, 109, 45, 0.35);
+      background: rgba(255, 245, 237, 0.96);
+      box-shadow: 0 0 0 8px var(--accent-soft);
+    }}
+    .checks {{
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+      align-items: center;
+    }}
+    .checks label {{
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      font-size: clamp(20px, 2vw, 24px);
+      font-weight: 700;
+      color: var(--ink);
+    }}
+    .checks input {{
+      width: 26px;
+      height: 26px;
+      margin: 0;
+    }}
+    .actions {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      padding-top: 4px;
+    }}
+    .cta {{
+      border: none;
+      border-radius: 999px;
+      padding: 24px 40px;
+      background: linear-gradient(135deg, #cf6a2f, #d97b22);
+      color: #fffaf2;
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 18px 36px rgba(208, 109, 45, 0.20);
+    }}
+    .hint {{
+      font-size: clamp(18px, 2vw, 22px);
+      color: var(--muted);
+    }}
+    @media (max-width: 820px) {{
+      body {{
+        padding: 16px;
+      }}
+      .quick-card {{
+        padding: 22px;
+        gap: 18px;
+      }}
+      .field {{
+        height: 76px;
+        border-radius: 24px;
+        padding: 0 20px;
+      }}
+      .choice span {{
+        padding: 22px;
+        border-radius: 26px;
+      }}
+      .actions {{
+        align-items: flex-start;
+      }}
+    }}
   </style>
 </head>
 <body>
@@ -377,79 +668,198 @@ def render_page(error_message: str = "") -> str:
       <div class="intro">
         <h1>Tải nhanh</h1>
         <p>Đây là phần bạn nên dùng trong hầu hết trường hợp. Mặc định hệ thống sẽ ưu tiên chất lượng cao nhất.</p>
-        <div class="access-note">Mở trên máy khác cùng Wi‑Fi: <a href="http://{lan_ip}:{port}">http://{lan_ip}:{port}</a></div>
       </div>
+
       <form method="post" action="/jobs/download">
         <input type="hidden" name="mode" value="download">
         <input type="hidden" name="quality" value="best">
         <input type="hidden" name="remux_video" value="mp4">
         <input type="hidden" name="output_dir" value="downloads">
+
         <div class="label-block">
           <strong>Link video</strong>
           <input class="field" name="url" placeholder="Dán link video vào đây..." required>
         </div>
+
         <p class="section-title">Bạn muốn lấy kết quả theo kiểu nào?</p>
+
         <div class="choice-row">
-          <label class="choice"><input type="radio" name="download_mode" value="video_best" checked><span><strong>Video gốc đẹp nhất</strong><small>Giữ đúng tỷ lệ và chất lượng tốt nhất có thể.</small></span></label>
-          <label class="choice"><input type="radio" name="download_mode" value="video_vertical"><span><strong>Video dọc 9:16</strong><small>Phù hợp TikTok, Shorts, Reels.</small></span></label>
-          <label class="choice"><input type="radio" name="download_mode" value="audio_only"><span><strong>Chỉ lấy âm thanh</strong><small>Tải ra MP3 để nghe hoặc cắt ghép sau.</small></span></label>
+          <label class="choice">
+            <input type="radio" name="download_mode" value="video_best" checked>
+            <span>
+              <strong>Video gốc đẹp nhất</strong>
+              <small>Giữ đúng tỷ lệ và chất lượng tốt nhất có thể.</small>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="download_mode" value="video_vertical">
+            <span>
+              <strong>Video dọc 9:16</strong>
+              <small>Phù hợp TikTok, Shorts, Reels.</small>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="download_mode" value="audio_only">
+            <span>
+              <strong>Chỉ lấy âm thanh</strong>
+              <small>Tải ra MP3 để nghe hoặc cắt ghép sau.</small>
+            </span>
+          </label>
         </div>
+
         <div class="checks">
           <label><input type="checkbox" name="write_thumbnail"> lưu ảnh thumbnail</label>
           <label><input type="checkbox" name="write_info_json"> lưu thông tin video</label>
         </div>
+
         <div class="actions">
           <button class="cta" type="submit">Tải video ngay</button>
           <div class="hint">Không cần đổi gì nếu bạn chỉ muốn tải video chất lượng cao.</div>
         </div>
       </form>
-      <section class="status-panel"><h2>Trạng thái tải</h2><div id="job-list"></div></section>
-      <section class="library"><h2>File đã tải</h2><div id="recent-files"></div></section>
+
+      <section class="status-panel">
+        <h2>Trạng thái tải</h2>
+        <div id="job-list"></div>
+      </section>
+
+      <section class="library">
+        <h2>File đã tải</h2>
+        <div id="recent-files"></div>
+      </section>
     </section>
   </main>
+
   <script>
-    const seededJobs = JSON.parse({jobs_json!r});
-    const seededFiles = JSON.parse({recent_files_json!r});
+    const seededJobs = JSON.parse("{jobs_json}");
+    const seededFiles = JSON.parse("{recent_files_json}");
     const form = document.querySelector("form");
     const modeInputs = document.querySelectorAll('input[name="download_mode"]');
+
     function syncMode() {{
       const selected = document.querySelector('input[name="download_mode"]:checked')?.value;
-      if (!form.querySelector('input[name="audio_only"]')) {{ const audio = document.createElement("input"); audio.type = "hidden"; audio.name = "audio_only"; form.appendChild(audio); }}
-      if (!form.querySelector('input[name="preset_name"]')) {{ const preset = document.createElement("input"); preset.type = "hidden"; preset.name = "preset_name"; form.appendChild(preset); }}
+      const audioFlag = form.querySelector('input[name="audio_only"]');
+      const presetField = form.querySelector('input[name="preset_name"]');
+      const workflowField = form.querySelector('input[name="mode"]');
+
+      if (!audioFlag) {{
+        const audio = document.createElement("input");
+        audio.type = "hidden";
+        audio.name = "audio_only";
+        form.appendChild(audio);
+      }}
+      if (!presetField) {{
+        const preset = document.createElement("input");
+        preset.type = "hidden";
+        preset.name = "preset_name";
+        form.appendChild(preset);
+      }}
+
       const audioHidden = form.querySelector('input[name="audio_only"]');
       const presetHidden = form.querySelector('input[name="preset_name"]');
-      const workflowField = form.querySelector('input[name="mode"]');
-      audioHidden.value = ""; presetHidden.value = "none"; workflowField.value = "download";
-      if (selected === "video_vertical") {{ workflowField.value = "workflow"; presetHidden.value = "reel"; }}
-      if (selected === "audio_only") {{ audioHidden.value = "on"; }}
+
+      audioHidden.value = "";
+      presetHidden.value = "none";
+      workflowField.value = "download";
+
+      if (selected === "video_vertical") {{
+        workflowField.value = "workflow";
+        presetHidden.value = "reel";
+      }}
+      if (selected === "audio_only") {{
+        audioHidden.value = "on";
+      }}
     }}
+
     modeInputs.forEach((input) => input.addEventListener("change", syncMode));
     syncMode();
-    function escapeHtml(value) {{ return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;"); }}
+
+    function escapeHtml(value) {{
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }}
+
     function renderJobs(items) {{
       const root = document.getElementById("job-list");
-      if (!items.length) {{ root.innerHTML = '<div class="status-empty">Chưa có lần tải nào. Dán link rồi bấm nút để bắt đầu.</div>'; return; }}
+      if (!items.length) {{
+        root.innerHTML = '<div class="status-empty">Chưa có lần tải nào. Dán link rồi bấm nút để bắt đầu.</div>';
+        return;
+      }}
       root.innerHTML = items.map((job) => {{
-        const logs = (job.log_lines || []).join("\n");
+        const logs = (job.log_lines || []).join("\\n");
         const output = job.downloadable_path || job.output_path || "se hien khi co";
-        const linkHtml = job.downloadable_url ? `<a class="download-link" href="${{escapeHtml(job.downloadable_url)}}" download>Tải file này</a>` : "";
-        return `<article class="status-item"><div class="status-head"><div><div class="status-title">${{escapeHtml(job.title)}}</div><div class="status-meta">${{escapeHtml(job.created_label || "")}} · exit ${{escapeHtml(job.return_code ?? "-")}}</div></div><span class="status-badge ${{escapeHtml(job.status)}}">${{escapeHtml(job.status)}}</span></div><div class="status-body"><div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>${{linkHtml}}<pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre></div></article>`;
+        const linkHtml = job.downloadable_url
+          ? `<a class="download-link" href="${{escapeHtml(job.downloadable_url)}}" download>Tải file này</a>`
+          : "";
+        return `
+          <article class="status-item">
+            <div class="status-head">
+              <div>
+                <div class="status-title">${{escapeHtml(job.title)}}</div>
+                <div class="status-meta">${{escapeHtml(job.created_label || "")}} · exit ${{escapeHtml(job.return_code ?? "-")}}</div>
+              </div>
+              <span class="status-badge ${{escapeHtml(job.status)}}">${{escapeHtml(job.status)}}</span>
+            </div>
+            <div class="status-body">
+              <div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>
+              ${{linkHtml}}
+              <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
+            </div>
+          </article>
+        `;
       }}).join("");
     }}
+
     function renderRecentFiles(items) {{
       const root = document.getElementById("recent-files");
-      if (!items.length) {{ root.innerHTML = '<div class="library-empty">Chưa có file nào trong thư mục downloads.</div>'; return; }}
-      root.innerHTML = `<div class="library-list">${{items.map((file) => `<article class="library-item"><div><div class="library-name">${{escapeHtml(file.name)}}</div><div class="library-meta">${{escapeHtml(file.size)}} · ${{escapeHtml(file.path)}}</div></div><a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a></article>`).join("")}}</div>`;
+      if (!items.length) {{
+        root.innerHTML = '<div class="library-empty">Chưa có file nào trong thư mục downloads.</div>';
+        return;
+      }}
+      root.innerHTML = `
+        <div class="library-list">
+          ${{items.map((file) => `
+            <article class="library-item">
+              <div>
+                <div class="library-name">${{escapeHtml(file.name)}}</div>
+                <div class="library-meta">${{escapeHtml(file.size)}} · ${{escapeHtml(file.path)}}</div>
+              </div>
+              <a class="download-link" href="${{escapeHtml(file.url)}}" download>Tải file này</a>
+            </article>
+          `).join("")}}
+        </div>
+      `;
     }}
+
     renderJobs(seededJobs);
     renderRecentFiles(seededFiles);
-    async function refreshJobs() {{ try {{ const response = await fetch("/api/jobs", {{ cache: "no-store" }}); if (!response.ok) return; renderJobs(await response.json()); }} catch (_error) {{}} }}
-    async function refreshFiles() {{ try {{ const response = await fetch("/api/files", {{ cache: "no-store" }}); if (!response.ok) return; renderRecentFiles(await response.json()); }} catch (_error) {{}} }}
+
+    async function refreshJobs() {{
+      try {{
+        const response = await fetch("/api/jobs", {{ cache: "no-store" }});
+        if (!response.ok) return;
+        renderJobs(await response.json());
+      }} catch (_error) {{
+      }}
+    }}
+
+    async function refreshFiles() {{
+      try {{
+        const response = await fetch("/api/files", {{ cache: "no-store" }});
+        if (!response.ok) return;
+        renderRecentFiles(await response.json());
+      }} catch (_error) {{
+      }}
+    }}
+
     setInterval(refreshJobs, 2500);
     setInterval(refreshFiles, 4000);
   </script>
 </body>
-</html>'''
+</html>"""
 
 
 class AppHandler(BaseHTTPRequestHandler):
@@ -484,15 +894,21 @@ class AppHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(content_length).decode("utf-8")
         raw_form = urllib.parse.parse_qs(body, keep_blank_values=True)
         form = {key: values[-1] for key, values in raw_form.items()}
+
         try:
             if parsed.path == "/jobs/download":
                 create_download_job(form)
+            elif parsed.path == "/jobs/batch":
+                create_batch_job(form)
+            elif parsed.path == "/jobs/edit":
+                create_edit_job(form)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
         except ValueError as error:
             self.respond_html(render_page(str(error)), status=HTTPStatus.BAD_REQUEST)
             return
+
         self.send_response(HTTPStatus.SEE_OTHER)
         self.send_header("Location", "/")
         self.end_headers()
