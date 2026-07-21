@@ -46,11 +46,14 @@ class EditOptions:
     crop: Optional[str] = None
     resize: Optional[str] = None
     video_filter: Optional[str] = None
+    overlay_text: Optional[str] = None
     video_codec: str = "libx264"
     crf: int = 18
     preset: str = "slow"
     mute: bool = False
     extract_audio: bool = False
+    denoise_audio: bool = False
+    beautify: bool = False
     faststart: bool = True
 
 
@@ -147,9 +150,23 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Extra ffmpeg video filter chain, e.g. scale=iw*1.04:ih*1.04,crop=iw/1.04:ih/1.04",
     )
     edit.add_argument(
+        "--overlay-text",
+        help="Running text shown on the video, e.g. 'Giảm giá cuối tuần'",
+    )
+    edit.add_argument(
         "--mute",
         action="store_true",
         help="Remove audio from the output video",
+    )
+    edit.add_argument(
+        "--denoise-audio",
+        action="store_true",
+        help="Apply a light ffmpeg noise reduction filter to the audio track",
+    )
+    edit.add_argument(
+        "--beautify",
+        action="store_true",
+        help="Apply light contrast, saturation, and sharpening for a cleaner look",
     )
     edit.add_argument(
         "--video-codec",
@@ -216,7 +233,10 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     workflow.add_argument("--crop")
     workflow.add_argument("--resize")
     workflow.add_argument("--video-filter")
+    workflow.add_argument("--overlay-text")
     workflow.add_argument("--mute", action="store_true")
+    workflow.add_argument("--denoise-audio", action="store_true")
+    workflow.add_argument("--beautify", action="store_true")
     workflow.add_argument(
         "--video-codec",
         choices=("libx264", "libx265"),
@@ -370,6 +390,18 @@ def resolve_edit_output(input_file: Path, output: Optional[str], extract_audio: 
     return input_file.with_name(f"{input_file.stem}_edited{suffix}")
 
 
+def escape_drawtext(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace(":", "\\:")
+        .replace("'", "\\'")
+        .replace("%", "\\%")
+        .replace(",", "\\,")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+    )
+
+
 def build_video_filters(options: EditOptions) -> List[str]:
     filters: List[str] = []
     if options.video_filter:
@@ -378,6 +410,31 @@ def build_video_filters(options: EditOptions) -> List[str]:
         filters.append(f"crop={options.crop}")
     if options.resize:
         filters.append(f"scale={options.resize}")
+    if options.beautify:
+        filters.append("eq=contrast=1.05:brightness=0.02:saturation=1.12")
+        filters.append("unsharp=5:5:0.6:3:3:0.2")
+    if options.overlay_text:
+        overlay_text = escape_drawtext(options.overlay_text)
+        filters.append(
+            "drawtext="
+            f"text='{overlay_text}':"
+            "fontcolor=white:"
+            "fontsize=h*0.045:"
+            "box=1:"
+            "boxcolor=black@0.30:"
+            "boxborderw=18:"
+            "x=w-mod(max(t\\,0)*(w*0.18)\\,(text_w+w))-text_w:"
+            "y=h*0.84"
+        )
+    return filters
+
+
+def build_audio_filters(options: EditOptions) -> List[str]:
+    filters: List[str] = []
+    if options.denoise_audio:
+        filters.append("afftdn=nf=-22")
+    if options.beautify and not options.mute:
+        filters.append("volume=1.15")
     return filters
 
 
@@ -390,11 +447,14 @@ def apply_edit_preset(options: EditOptions, preset_name: str) -> EditOptions:
         crop=options.crop,
         resize=options.resize or preset.get("resize"),
         video_filter=options.video_filter or preset.get("video_filter"),
+        overlay_text=options.overlay_text,
         video_codec=options.video_codec,
         crf=options.crf,
         preset=options.preset,
         mute=options.mute,
         extract_audio=options.extract_audio,
+        denoise_audio=options.denoise_audio,
+        beautify=options.beautify,
         faststart=options.faststart,
     )
     return merged
@@ -406,7 +466,10 @@ def should_stream_copy(options: EditOptions) -> bool:
         and not options.video_filter
         and not options.crop
         and not options.resize
+        and not options.overlay_text
         and not options.mute
+        and not options.denoise_audio
+        and not options.beautify
     )
 
 
@@ -445,6 +508,9 @@ def build_edit_command(
     if options.mute:
         command.append("-an")
     else:
+        audio_filters = build_audio_filters(options)
+        if audio_filters:
+            command.extend(["-af", ",".join(audio_filters)])
         command.extend(["-c:a", "aac"])
 
     command.extend(
@@ -500,11 +566,14 @@ def run_edit(args: argparse.Namespace) -> int:
         crop=args.crop,
         resize=args.resize,
         video_filter=args.video_filter,
+        overlay_text=args.overlay_text,
         video_codec=args.video_codec,
         crf=args.crf,
         preset=args.encode_preset,
         mute=args.mute,
         extract_audio=args.extract_audio,
+        denoise_audio=args.denoise_audio,
+        beautify=args.beautify,
     )
     options = apply_edit_preset(options, args.preset_name)
     command = build_edit_command(args.input_file, args.output, options)
@@ -539,8 +608,11 @@ def run_workflow(args: argparse.Namespace) -> int:
             args.crop,
             args.resize,
             args.video_filter,
+            args.overlay_text,
             args.mute,
             args.extract_audio,
+            args.denoise_audio,
+            args.beautify,
         ]
     )
     if not should_edit:
@@ -554,11 +626,14 @@ def run_workflow(args: argparse.Namespace) -> int:
         crop=args.crop,
         resize=args.resize,
         video_filter=args.video_filter,
+        overlay_text=args.overlay_text,
         video_codec=args.video_codec,
         crf=args.crf,
         preset=args.encode_preset,
         mute=args.mute,
         extract_audio=args.extract_audio,
+        denoise_audio=args.denoise_audio,
+        beautify=args.beautify,
     )
     options = apply_edit_preset(options, args.preset_name)
     command = build_edit_command(str(latest_file), None, options)

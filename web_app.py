@@ -282,6 +282,7 @@ def parse_edit_prompt(prompt: str) -> Dict[str, str]:
         return {}
 
     parsed: Dict[str, str] = {}
+    raw_prompt = (prompt or "").strip()
 
     seconds_at_start = re.search(r"(?:cắt|bỏ|đổi)\s*(\d+)\s*giây đầu", text)
     if seconds_at_start:
@@ -301,6 +302,16 @@ def parse_edit_prompt(prompt: str) -> Dict[str, str]:
 
     if any(keyword in text for keyword in ("mp3", "chỉ âm thanh", "lấy âm thanh")):
         parsed["extract_audio"] = "on"
+
+    text_overlay = re.search(r"(?:chữ chạy|text chạy|dòng chữ)\s*[:：-]\s*(.+?)(?:,|$)", raw_prompt, re.IGNORECASE)
+    if text_overlay:
+        parsed["overlay_text"] = text_overlay.group(1).strip()
+
+    if any(keyword in text for keyword in ("lọc tiếng ồn", "khử ồn", "noise", "giảm ồn", "lọc tạp âm")):
+        parsed["denoise_audio"] = "on"
+
+    if any(keyword in text for keyword in ("hiệu ứng", "đẹp hơn", "làm đẹp", "màu đẹp", "cinematic")):
+        parsed["beautify"] = "on"
 
     wants_variation = any(
         keyword in text
@@ -335,10 +346,13 @@ def build_edit_args(form: Dict[str, str]) -> List[str]:
             merged[key] = value
 
     args: List[str] = []
-    for key in ("start", "end", "duration", "crop", "resize", "video_filter"):
+    for key in ("start", "end", "duration", "crop", "resize", "video_filter", "overlay_text"):
         value = merged.get(key, "").strip()
         if value:
-            option_name = "--video-filter" if key == "video_filter" else f"--{key}"
+            option_name = {
+                "video_filter": "--video-filter",
+                "overlay_text": "--overlay-text",
+            }.get(key, f"--{key}")
             args.extend([option_name, value])
     preset_name = merged.get("preset_name", "none").strip() or "none"
     args.extend(["--preset-name", preset_name])
@@ -346,6 +360,10 @@ def build_edit_args(form: Dict[str, str]) -> List[str]:
         args.append("--mute")
     if bool_from_form(merged.get("extract_audio")):
         args.append("--extract-audio")
+    if bool_from_form(merged.get("denoise_audio")):
+        args.append("--denoise-audio")
+    if bool_from_form(merged.get("beautify")):
+        args.append("--beautify")
     video_codec = merged.get("video_codec", "libx264").strip() or "libx264"
     encode_preset = merged.get("encode_preset", "slow").strip() or "slow"
     crf = merged.get("crf", "18").strip() or "18"
@@ -363,9 +381,12 @@ def build_edit_args(form: Dict[str, str]) -> List[str]:
             merged.get("crop", "").strip(),
             merged.get("resize", "").strip(),
             merged.get("video_filter", "").strip(),
+            merged.get("overlay_text", "").strip(),
             preset_name != "none",
             bool_from_form(merged.get("mute")),
             bool_from_form(merged.get("extract_audio")),
+            bool_from_form(merged.get("denoise_audio")),
+            bool_from_form(merged.get("beautify")),
             merged.get("output", "").strip(),
         ]
     )
@@ -1061,8 +1082,8 @@ def render_page(error_message: str = "") -> str:
 
         <div class="label-block">
           <strong>Mô tả chỉnh sửa</strong>
-          <textarea class="field multiline" name="edit_prompt" placeholder="Ví dụ: cắt 3 giây đầu, làm dọc 9:16, zoom nhẹ cho khác bản gốc"></textarea>
-          <div class="form-note">Để trống nếu chỉ muốn tải. Có thể ghi tự nhiên như: cắt 3 giây đầu, làm dọc 9:16, tắt tiếng, làm khác bản gốc.</div>
+          <textarea class="field multiline" name="edit_prompt" placeholder="Ví dụ: cắt 3 giây đầu, chữ chạy: Sale cuối tuần, lọc tiếng ồn, thêm hiệu ứng"></textarea>
+          <div class="form-note">Có thể ghi tự nhiên như: cắt 3 giây đầu, làm dọc 9:16, chữ chạy: giảm giá hôm nay, lọc tiếng ồn, thêm hiệu ứng.</div>
         </div>
 
         <div class="actions">
