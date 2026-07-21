@@ -715,35 +715,30 @@ def render_page(error_message: str = "") -> str:
       display: grid;
       gap: 22px;
     }}
+    .intro {{
+      display: grid;
+      justify-items: center;
+      text-align: center;
+      gap: 10px;
+    }}
     .intro h1 {{
-      margin: 0 0 8px;
+      margin: 0;
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      font-size: clamp(40px, 6vw, 58px);
+      font-size: clamp(38px, 5.4vw, 56px);
       line-height: 0.98;
       letter-spacing: -0.04em;
     }}
     .intro p {{
       margin: 0;
-      max-width: 640px;
-      font-size: clamp(16px, 2vw, 19px);
+      max-width: 760px;
+      font-size: clamp(16px, 1.9vw, 18px);
       line-height: 1.5;
       color: var(--muted);
     }}
-    .hero-points {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 16px;
-    }}
-    .hero-points span {{
-      display: inline-flex;
-      align-items: center;
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(183, 121, 51, 0.14);
-      color: #7f5527;
-      font-size: 14px;
+    .platform-note {{
+      font-size: 15px;
+      line-height: 1.6;
+      color: #84592a;
       font-weight: 700;
     }}
     form {{
@@ -876,12 +871,8 @@ def render_page(error_message: str = "") -> str:
     <section class="quick-card">
       <div class="intro">
         <h1>Tải video chỉ với 1 link</h1>
-        <p>Dán link, bấm tải, chờ vài giây rồi bấm lưu về máy. Mặc định luôn ưu tiên bản đẹp nhất và dễ dùng trên điện thoại.</p>
-        <div class="hero-points">
-          <span>Ưu tiên chất lượng cao</span>
-          <span>Dùng tốt trên điện thoại</span>
-          <span>Không cần biết kỹ thuật</span>
-        </div>
+        <p>Dán link rồi tải ngay. Hệ thống tự ưu tiên chất lượng đẹp và cách lưu dễ nhất trên điện thoại.</p>
+        <div class="platform-note">Hỗ trợ link từ TikTok, Facebook, YouTube, X và các dạng Shorts, Reels.</div>
       </div>
 
       <form method="post" action="/jobs/download">
