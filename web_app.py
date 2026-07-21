@@ -452,6 +452,32 @@ def render_page(error_message: str = "") -> str:
       text-decoration: none;
       font-weight: 800;
     }}
+    .download-link.primary {{
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #cf6a2f, #d97b22);
+      color: #fffaf2;
+      font-size: 16px;
+      box-shadow: 0 10px 24px rgba(208, 109, 45, 0.18);
+    }}
+    .status-note {{
+      padding: 12px 14px;
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.5;
+    }}
+    .status-note.done {{
+      background: rgba(76,175,80,0.14);
+      color: #1f6a2b;
+    }}
+    .status-note.running {{
+      background: rgba(255,186,73,0.20);
+      color: #7d4a00;
+    }}
+    .status-note.failed {{
+      background: rgba(178,34,34,0.10);
+      color: #8d1c1c;
+    }}
     .library {{
       margin-top: 8px;
       display: grid;
@@ -791,8 +817,15 @@ def render_page(error_message: str = "") -> str:
       root.innerHTML = items.map((job) => {{
         const logs = (job.log_lines || []).join("\\n");
         const output = job.downloadable_path || job.output_path || "se hien khi co";
+        const statusNote = job.downloadable_url
+          ? '<div class="status-note done">Xong rồi, bấm nút bên dưới để lưu video vào máy.</div>'
+          : job.status === "running"
+            ? '<div class="status-note running">Hệ thống đang xử lý. Chờ một chút, khi xong sẽ hiện nút lưu vào máy.</div>'
+            : job.status === "failed"
+              ? '<div class="status-note failed">Lần tải này chưa thành công. Bạn có thể kiểm tra log bên dưới rồi thử lại.</div>'
+              : "";
         const linkHtml = job.downloadable_url
-          ? `<a class="download-link" href="${{escapeHtml(job.downloadable_url)}}" download>Tải file này</a>`
+          ? `<a class="download-link primary" href="${{escapeHtml(job.downloadable_url)}}" download>Lưu vào máy</a>`
           : "";
         return `
           <article class="status-item">
@@ -805,6 +838,7 @@ def render_page(error_message: str = "") -> str:
             </div>
             <div class="status-body">
               <div class="status-path"><strong>File sẽ nằm ở:</strong> ${{escapeHtml(output)}}</div>
+              ${{statusNote}}
               ${{linkHtml}}
               <pre class="status-log">${{escapeHtml(logs || "Đang chờ log...")}}</pre>
             </div>
