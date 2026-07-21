@@ -433,10 +433,6 @@ def render_page(error_message: str = "") -> str:
       letter-spacing: -0.03em;
       line-height: 0.98;
     }}
-    .brand-sub {{
-      font-size: 15px;
-      color: var(--muted);
-    }}
     .alert {{
       margin-bottom: 18px;
       padding: 14px 16px;
@@ -713,26 +709,6 @@ def render_page(error_message: str = "") -> str:
       line-height: 0.92;
       letter-spacing: -0.04em;
     }}
-    .intro p {{
-      margin: 0;
-      max-width: 680px;
-      font-size: clamp(17px, 2vw, 20px);
-      line-height: 1.58;
-      color: var(--muted);
-    }}
-    .platform-note {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 12px 18px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(183, 121, 51, 0.12);
-      font-size: 14px;
-      line-height: 1.5;
-      color: #84592a;
-      font-weight: 700;
-    }}
     form {{
       display: grid;
       gap: 18px;
@@ -860,9 +836,6 @@ def render_page(error_message: str = "") -> str:
         font-size: 26px;
         line-height: 1;
       }}
-      .brand-sub {{
-        font-size: 14px;
-      }}
       .quick-card {{
         padding: 20px 18px 18px;
         gap: 16px;
@@ -892,16 +865,6 @@ def render_page(error_message: str = "") -> str:
         max-width: 8ch;
         font-size: clamp(34px, 10vw, 48px);
         line-height: 0.96;
-      }}
-      .intro p {{
-        max-width: 22ch;
-        font-size: 16px;
-        line-height: 1.52;
-      }}
-      .platform-note {{
-        padding: 10px 12px;
-        font-size: 13px;
-        line-height: 1.45;
       }}
       .section-card {{
         padding: 18px;
@@ -953,10 +916,6 @@ def render_page(error_message: str = "") -> str:
       .brand-name {{
         font-size: 23px;
       }}
-      .brand-sub {{
-        max-width: 20ch;
-        line-height: 1.35;
-      }}
       .quick-card {{
         padding: 18px 14px 16px;
       }}
@@ -973,18 +932,6 @@ def render_page(error_message: str = "") -> str:
         font-size: clamp(32px, 9vw, 42px);
         line-height: 0.98;
         letter-spacing: -0.045em;
-      }}
-      .intro p {{
-        max-width: 23ch;
-        font-size: 15px;
-        line-height: 1.58;
-        text-wrap: balance;
-      }}
-      .platform-note {{
-        max-width: 26ch;
-        text-align: center;
-        line-height: 1.5;
-        text-wrap: balance;
       }}
       .label-block strong {{
         font-size: 12px;
@@ -1022,7 +969,6 @@ def render_page(error_message: str = "") -> str:
       <div class="brand-mark">H</div>
       <div class="brand-copy">
         <div class="brand-name">hungphatluxury</div>
-        <div class="brand-sub">Tải video nhanh, đẹp, gọn và dễ dùng.</div>
       </div>
     </div>
     <div id="job-banner" class="job-banner" aria-live="polite"></div>
@@ -1030,8 +976,6 @@ def render_page(error_message: str = "") -> str:
       <div class="intro">
         <div class="hero-kicker">TikTok • Facebook • YouTube • X</div>
         <h1>Dán link, lấy video đẹp ngay</h1>
-        <p>Tải nhanh, lưu dễ, ưu tiên bản đẹp nhất để dùng tốt trên điện thoại.</p>
-        <div class="platform-note">Hỗ trợ video thường, Shorts, Reels và nhiều link chia sẻ phổ biến.</div>
       </div>
 
       <form method="post" action="/jobs/download">
