@@ -309,8 +309,8 @@ def render_page(error_message: str = "") -> str:
 
     deps = dependency_report()
     recent_files = list_recent_downloads()
-    jobs_json = html.escape(json.dumps(job_rows))
-    recent_files_json = html.escape(json.dumps(recent_files))
+    jobs_json = json.dumps(job_rows, ensure_ascii=False)
+    recent_files_json = json.dumps(recent_files, ensure_ascii=False)
     error_html = ""
     if error_message:
         error_html = f'<div class="alert">{html.escape(error_message)}</div>'
@@ -757,8 +757,8 @@ def render_page(error_message: str = "") -> str:
   </main>
 
   <script>
-    const seededJobs = JSON.parse("{jobs_json}");
-    const seededFiles = JSON.parse("{recent_files_json}");
+    const seededJobs = {jobs_json};
+    const seededFiles = {recent_files_json};
     const form = document.querySelector("form");
     const modeInputs = document.querySelectorAll('input[name="download_mode"]');
 
