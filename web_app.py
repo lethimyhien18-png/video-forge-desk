@@ -96,7 +96,9 @@ def detect_downloadable_file(path_hint: str) -> Optional[Path]:
         return None
     candidates = [
         item for item in path.rglob("*")
-        if item.is_file() and item.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
+        if item.is_file()
+        and not item.name.startswith(".")
+        and item.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
     ]
     if not candidates:
         return None
@@ -108,7 +110,9 @@ def list_recent_downloads(limit: int = 10) -> List[Dict[str, str]]:
         return []
     files = [
         item for item in DOWNLOADS_DIR.rglob("*")
-        if item.is_file() and item.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
+        if item.is_file()
+        and not item.name.startswith(".")
+        and item.suffix.lower() not in {".json", ".jpg", ".jpeg", ".png", ".webp", ".vtt", ".srt", ".txt"}
     ]
     files.sort(key=lambda item: item.stat().st_mtime, reverse=True)
     results: List[Dict[str, str]] = []
@@ -898,14 +902,8 @@ def render_page(error_message: str = "") -> str:
           </label>
         </div>
 
-        <div class="checks">
-          <label><input type="checkbox" name="write_thumbnail"> lưu ảnh thumbnail</label>
-          <label><input type="checkbox" name="write_info_json"> lưu thông tin video</label>
-        </div>
-
         <div class="actions">
           <button class="cta" type="submit">Tải video ngay</button>
-          <div class="hint">Không cần đổi gì nếu bạn chỉ muốn tải video chất lượng cao.</div>
         </div>
       </form>
 
