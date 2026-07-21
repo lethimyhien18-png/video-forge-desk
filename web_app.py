@@ -367,7 +367,7 @@ def render_page(error_message: str = "") -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>hungphatluxury</title>
+  <title>Tải video</title>
   <style>
     :root {{
       --bg: #f6f0e8;
@@ -695,10 +695,11 @@ def render_page(error_message: str = "") -> str:
     .intro h1 {{
       margin: 0;
       font-family: "Iowan Old Style", "Palatino Linotype", serif;
-      max-width: 12ch;
+      max-width: 14ch;
       font-size: clamp(36px, 5.2vw, 58px);
       line-height: 0.96;
       letter-spacing: -0.04em;
+      text-wrap: balance;
     }}
     form {{
       display: grid;
@@ -849,9 +850,10 @@ def render_page(error_message: str = "") -> str:
         padding: 16px 20px;
       }}
       .intro h1 {{
-        max-width: 8ch;
+        max-width: 11ch;
         font-size: clamp(30px, 8.4vw, 40px);
         line-height: 0.96;
+        text-wrap: balance;
       }}
       .section-card {{
         padding: 18px;
@@ -912,10 +914,11 @@ def render_page(error_message: str = "") -> str:
         line-height: 1.35;
       }}
       .intro h1 {{
-        max-width: 8.5ch;
-        font-size: clamp(28px, 7.8vw, 36px);
-        line-height: 0.98;
+        max-width: 12ch;
+        font-size: clamp(26px, 7vw, 33px);
+        line-height: 1;
         letter-spacing: -0.045em;
+        text-wrap: balance;
       }}
       .label-block strong {{
         font-size: 12px;
